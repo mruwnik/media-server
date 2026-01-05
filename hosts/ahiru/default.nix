@@ -5,14 +5,16 @@
     ./hardware.nix
     ../../modules/common/networking.nix
     ../../modules/common/users.nix
+    ../../modules/common/first-boot-install.nix
     # Services (added incrementally)
     ../../modules/services/nginx.nix
     ../../modules/services/storage.nix
     ../../modules/services/torrent.nix
-    # ../../modules/services/media.nix
-    # ../../modules/services/calendar.nix
-    # ../../modules/services/git.nix
-    # ../../modules/services/dns.nix
+    ../../modules/services/media.nix
+    ../../modules/services/calendar.nix
+    ../../modules/services/git.nix
+    ../../modules/services/dns.nix
+    ../../modules/services/backup.nix
   ];
 
   networking.hostName = "ahiru";
