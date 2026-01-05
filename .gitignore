@@ -1,0 +1,11 @@
+result
+result-*
+.direnv/
+.envrc
+*.age
+secrets/*.enc
+!secrets/.gitkeep
+
+# Migration secrets
+migration/nginx/htpasswd
+migration/gitea/passwords.txt
