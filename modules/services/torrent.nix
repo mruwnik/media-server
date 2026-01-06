@@ -18,6 +18,9 @@
 
     # Only add settings not provided by the NixOS module
     configText = ''
+      # Override paths to use hidden directories (matching original config)
+      session.path.set = /media/data/Unsorted/.session/
+
       # Enable DHT and peer exchange (module defaults to disabled)
       dht.mode.set = auto
       protocol.pex.set = yes
@@ -35,13 +38,12 @@
     '';
   };
 
-  # Create directories used by rtorrent module
-  # (module uses watch/, log/, session/ without dots)
+  # Create hidden directories (matching original config)
   systemd.tmpfiles.rules = [
     "d /media/data/Unsorted/.downloading 0775 torrents torrents -"
-    "d /media/data/Unsorted/session 0775 torrents torrents -"
-    "d /media/data/Unsorted/watch 0775 torrents torrents -"
-    "d /media/data/Unsorted/log 0775 torrents torrents -"
+    "d /media/data/Unsorted/.session 0775 torrents torrents -"
+    "d /media/data/Unsorted/.watch 0775 torrents torrents -"
+    "d /media/data/Unsorted/.log 0775 torrents torrents -"
   ];
 
   # ============================================================

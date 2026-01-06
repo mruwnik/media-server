@@ -33,7 +33,7 @@
     virtualHosts."ahiru.pl" = {
       enableACME = true;
       forceSSL = true;
-      root = "/var/www/ahiru";
+      root = "/var/www/ahiru/public";
 
       locations."/" = {
         tryFiles = "$uri $uri/ =404";
@@ -50,13 +50,12 @@
     virtualHosts."media.ahiru.pl" = {
       enableACME = true;
       forceSSL = true;
+      root = "/media/data/www/media";
 
-      # Landing page (optional)
+      # Static files
       locations."/" = {
-        return = "200 '<html><body><h1>media.ahiru.pl</h1></body></html>'";
-        extraConfig = ''
-          default_type text/html;
-        '';
+        tryFiles = "$uri $uri/ =404";
+        index = "index.html";
       };
 
       # Calibre-web - /books

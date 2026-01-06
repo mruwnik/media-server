@@ -16,6 +16,7 @@
   };
 
   outputs = { self, nixpkgs, raspberry-pi-nix, sops-nix, ... }@inputs: {
+    # Full configuration with all services
     nixosConfigurations.ahiru = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       specialArgs = { inherit inputs; };
@@ -27,7 +28,22 @@
       ];
     };
 
-    # Build SD/USB image: nix build '.#images.ahiru'
+    # Minimal base configuration for first-boot HDD installation
+    nixosConfigurations.ahiru-base = nixpkgs.lib.nixosSystem {
+      system = "aarch64-linux";
+      specialArgs = { inherit inputs; };
+      modules = [
+        raspberry-pi-nix.nixosModules.raspberry-pi
+        raspberry-pi-nix.nixosModules.sd-image
+        sops-nix.nixosModules.sops
+        ./hosts/ahiru/base.nix
+      ];
+    };
+
+    # Build images:
+    #   Full:  nix build '.#images.ahiru'
+    #   Base:  nix build '.#images.ahiru-base'
     images.ahiru = self.nixosConfigurations.ahiru.config.system.build.sdImage;
+    images.ahiru-base = self.nixosConfigurations.ahiru-base.config.system.build.sdImage;
   };
 }

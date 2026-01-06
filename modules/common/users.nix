@@ -1,9 +1,9 @@
 { config, lib, pkgs, ... }:
 
 {
-  # Generate GitHub SSH key for dan on activation
-  system.activationScripts.danGithubKey = ''
-    keyfile="/home/dan/.ssh/github"
+  # Generate default SSH key for dan on activation
+  system.activationScripts.danSshKey = ''
+    keyfile="/home/dan/.ssh/id_ed25519"
     sshdir="/home/dan/.ssh"
 
     if [[ ! -f "$keyfile" ]]; then
@@ -13,18 +13,7 @@
       chmod 700 "$sshdir"
       chmod 600 "$keyfile"
       chmod 644 "$keyfile.pub"
-      echo "Generated GitHub key: $keyfile.pub"
-    fi
-
-    # Ensure SSH config has GitHub entry
-    if [[ ! -f "$sshdir/config" ]] || ! grep -q "Host github.com" "$sshdir/config"; then
-      cat >> "$sshdir/config" << 'EOF'
-Host github.com
-    IdentityFile ~/.ssh/github
-    IdentitiesOnly yes
-EOF
-      chown 1000:100 "$sshdir/config"
-      chmod 600 "$sshdir/config"
+      echo "Generated SSH key: $keyfile.pub"
     fi
   '';
 
