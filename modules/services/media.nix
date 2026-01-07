@@ -18,6 +18,10 @@
     options = {
       calibreLibrary = "/media/data/Books";
       enableBookUploading = true;
+      reverseProxyAuth = {
+        enable = true;
+        header = "X-Remote-User";
+      };
     };
   };
 
@@ -43,6 +47,14 @@
     extraConfig = ''
       # Only local connections for control
       bind_to_address "localhost"
+
+      # Hardware audio output (3.5mm headphone jack)
+      audio_output {
+        type        "alsa"
+        name        "Headphones"
+        device      "hw:CARD=Headphones,DEV=0"
+        mixer_type  "software"
+      }
 
       # HTTP streaming output (replaces Icecast)
       audio_output {
@@ -75,6 +87,7 @@
     settings = {
       http_port = 8080;
       http_host = "127.0.0.1";
+      mympd_uri = "/music";
     };
   };
 
@@ -98,6 +111,51 @@
   };
 
   environment.systemPackages = with pkgs; [
-    mpc-cli  # MPD command-line client
+    mpc-cli     # MPD command-line client
+    alsa-utils  # aplay, amixer, etc.
+    sqlite      # For calibre-web user sync
   ];
+
+  # Sync htpasswd users to calibre-web before it starts
+  systemd.services.calibre-web-user-sync = {
+    description = "Sync htpasswd users to Calibre-Web";
+    before = [ "calibre-web.service" ];
+    wantedBy = [ "multi-user.target" ];
+    after = [ "local-fs.target" ];
+
+    path = [ pkgs.sqlite ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+
+    script = ''
+      DB="/var/lib/calibre-web/app.db"
+
+      # Wait for database to exist (created by calibre-web on first run)
+      if [ ! -f "$DB" ]; then
+        echo "Calibre-web database not found yet, skipping user sync"
+        exit 0
+      fi
+
+      # Create users with appropriate roles
+      # role=1 is admin, role=0 is reader (can browse/download)
+      create_user() {
+        local user=$1
+        local role=$2
+        EXISTS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM user WHERE name='$user';")
+        if [ "$EXISTS" -eq 0 ]; then
+          echo "Creating calibre-web user: $user (role=$role)"
+          sqlite3 "$DB" "INSERT INTO user (name, email, password, role, sidebar_view, default_language, locale, view_settings) VALUES ('$user', '$user@local', '''''', $role, 4095, 'en', 'en', '${"{}"}');"
+        else
+          echo "User $user already exists"
+        fi
+      }
+
+      create_user "dan" 1      # admin
+      create_user "nadia" 0    # reader
+      create_user "rumun" 0    # reader
+    '';
+  };
 }

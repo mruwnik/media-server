@@ -12,8 +12,8 @@
       };
       auth = {
         type = "htpasswd";
-        htpasswd_filename = "/etc/radicale/htpasswd";
-        htpasswd_encryption = "plain";  # Use plain for compatibility
+        htpasswd_filename = "/etc/shared-htpasswd";
+        htpasswd_encryption = "md5";  # apr1 hashes
       };
       storage = {
         filesystem_folder = "/media/data/calendar/collection-root";
@@ -23,17 +23,6 @@
         level = "warning";
       };
     };
-  };
-
-  # Radicale htpasswd file (same users as nginx)
-  environment.etc."radicale/htpasswd" = {
-    text = ''
-      dan:$apr1$7bIsm34C$SZzlRphUURQABM5eMTtO41
-      nadia:$apr1$DQ.OxmB2$w4zbBDza2fotuGf5IHWjh/
-    '';
-    mode = "0640";
-    user = "radicale";
-    group = "radicale";
   };
 
   # Ensure calendar directory exists with correct permissions

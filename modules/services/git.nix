@@ -11,19 +11,19 @@
   users.users.git = {
     isSystemUser = true;
     group = "git";
-    home = "/media/data/git";
+    home = "/media/data/git/repos";
     shell = "${pkgs.git}/bin/git-shell";
     description = "Git repository hosting";
     openssh.authorizedKeys.keys = [
       # Dan's SSH key (same as main user)
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMCRsyplB7GDFE9GarBla6C0N9lD0wmu7UaSFQQ2Pjz/"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN/7ZMH3Q2QQQFD6Ugtv8Lii2WTdYV3GM0aYa5Bu+Bvw me@ahiru.pl"
     ];
   };
   users.groups.git = {};
 
   # Ensure git home directory exists
   systemd.tmpfiles.rules = [
-    "d /media/data/git 0755 git git -"
+    "d /media/data/git/repos 0755 git git -"
   ];
 
   # Git package available system-wide

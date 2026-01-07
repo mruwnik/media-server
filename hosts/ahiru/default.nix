@@ -16,5 +16,6 @@
     ../../modules/services/git.nix
     ../../modules/services/dns.nix
     ../../modules/services/backup.nix
+    ../../modules/services/mcp.nix
   ];
 }

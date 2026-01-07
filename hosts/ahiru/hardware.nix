@@ -4,6 +4,12 @@
   # Raspberry Pi 4
   raspberry-pi-nix.board = "bcm2711";
 
+  # Enable audio (3.5mm headphone jack)
+  # Note: also need dtparam=audio=on in /boot/firmware/config.txt
+  boot.kernelParams = [
+    "snd_bcm2835.enable_headphones=1"
+  ];
+
   # Root filesystem on USB HDD (sda1) - 30GB partition
   # mkForce required to override raspberry-pi-nix sd-image defaults
   fileSystems."/" = {

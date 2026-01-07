@@ -58,7 +58,7 @@
       Type = "simple";
       User = "torrents";
       Group = "torrents";
-      ExecStart = "${pkgs.flood}/bin/flood --host 127.0.0.1 --port 3000 --rundir /var/lib/flood";
+      ExecStart = "${pkgs.flood}/bin/flood --host 127.0.0.1 --port 3000 --baseuri /torrents --rundir /var/lib/flood --auth none --rtsocket /run/rtorrent/rpc.sock";
       Restart = "on-failure";
       StateDirectory = "flood";
     };

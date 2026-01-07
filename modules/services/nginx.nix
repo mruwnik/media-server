@@ -1,6 +1,11 @@
 { lib, pkgs, ... }:
 
 {
+  # Group for services that need to read htpasswd file
+  users.groups.htpasswd-readers = {};
+
+  # Add nginx to the htpasswd-readers group
+  users.users.nginx.extraGroups = [ "htpasswd-readers" ];
   # ACME (Let's Encrypt) configuration
   security.acme = {
     acceptTerms = true;
@@ -9,15 +14,16 @@
 
   # Ports 80/443 defined in networking.nix
 
-  # Basic auth credentials (htpasswd format - passwords are hashed)
-  environment.etc."nginx/htpasswd" = {
+  # Shared htpasswd file - used by nginx, radicale, mcp, etc.
+  # All services should reference /etc/shared-htpasswd
+  environment.etc."shared-htpasswd" = {
     text = ''
       dan:$apr1$7bIsm34C$SZzlRphUURQABM5eMTtO41
       nadia:$apr1$DQ.OxmB2$w4zbBDza2fotuGf5IHWjh/
+      rumun:$apr1$/VEo9baE$kBUZi8Rjhs1nmAgqYTwL1/
     '';
-    mode = "0640";
-    user = "nginx";
-    group = "nginx";
+    mode = "0640";  # Only root and htpasswd-readers group
+    group = "htpasswd-readers";
   };
 
   services.nginx = {
@@ -44,6 +50,47 @@
       extraConfig = ''
         error_page 404 /404.html;
       '';
+
+      # Local MCP server - /mcp (manages its own auth)
+      locations."^~ /mcp" = {
+        proxyPass = "http://127.0.0.1:3001";
+        proxyWebsockets = true;
+        extraConfig = ''
+          proxy_intercept_errors off;
+        '';
+      };
+
+      # OAuth endpoints for MCP server (at root level due to fastmcp behavior)
+      locations."/authorize" = {
+        proxyPass = "http://127.0.0.1:3001/authorize";
+        extraConfig = ''
+          proxy_intercept_errors off;
+        '';
+      };
+      locations."/token" = {
+        proxyPass = "http://127.0.0.1:3001/token";
+        extraConfig = ''
+          proxy_intercept_errors off;
+        '';
+      };
+      locations."/register" = {
+        proxyPass = "http://127.0.0.1:3001/register";
+        extraConfig = ''
+          proxy_intercept_errors off;
+        '';
+      };
+      locations."/login" = {
+        proxyPass = "http://127.0.0.1:3001/login";
+        extraConfig = ''
+          proxy_intercept_errors off;
+        '';
+      };
+      locations."/.well-known/" = {
+        proxyPass = "http://127.0.0.1:3001/.well-known/";
+        extraConfig = ''
+          proxy_intercept_errors off;
+        '';
+      };
     };
 
     # media.ahiru.pl - services portal
@@ -58,10 +105,35 @@
         index = "index.html";
       };
 
-      # Calibre-web - /books
+      # Calibre-web - /books (use sub_filter to rewrite absolute paths)
       locations."/books" = {
-        proxyPass = "http://127.0.0.1:8083";
+        return = "301 /books/";
+      };
+      locations."/books/" = {
+        proxyPass = "http://127.0.0.1:8083/";
         proxyWebsockets = true;
+        basicAuthFile = "/etc/shared-htpasswd";
+        extraConfig = ''
+          proxy_set_header X-Remote-User $remote_user;
+          proxy_set_header Accept-Encoding "";
+          sub_filter_once off;
+          sub_filter_types text/html text/css application/javascript;
+          sub_filter 'href="/' 'href="/books/';
+          sub_filter 'src="/' 'src="/books/';
+          sub_filter 'action="/' 'action="/books/';
+          sub_filter 'url(/' 'url(/books/';
+          sub_filter '"/static/' '"/books/static/';
+          sub_filter '"/login' '"/books/login';
+          sub_filter '"/logout' '"/books/logout';
+          sub_filter '"/me' '"/books/me';
+          sub_filter '"/admin' '"/books/admin';
+          sub_filter '"/shelf' '"/books/shelf';
+          sub_filter '"/book' '"/books/book';
+          sub_filter '"/read' '"/books/read';
+          sub_filter '"/ajax' '"/books/ajax';
+          sub_filter '"/tasks' '"/books/tasks';
+          proxy_redirect / /books/;
+        '';
       };
 
       # Radicale CalDAV - /radicale/
@@ -76,16 +148,22 @@
 
       # Flood torrent UI - /torrents
       locations."/torrents" = {
+        return = "301 /torrents/";
+      };
+      locations."/torrents/" = {
         proxyPass = "http://127.0.0.1:3000";
         proxyWebsockets = true;
-        basicAuthFile = "/etc/nginx/htpasswd";
+        basicAuthFile = "/etc/shared-htpasswd";
       };
 
       # myMPD music UI - /music
       locations."/music" = {
-        proxyPass = "http://127.0.0.1:8080";
+        return = "301 /music/";
+      };
+      locations."/music/" = {
+        proxyPass = "http://127.0.0.1:8080/";
         proxyWebsockets = true;
-        basicAuthFile = "/etc/nginx/htpasswd";
+        basicAuthFile = "/etc/shared-htpasswd";
       };
     };
   };
