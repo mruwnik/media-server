@@ -30,8 +30,8 @@
       log.add_output = "info", "rtorrent"
 
       # Watch directories for auto-loading torrents
-      schedule2 = watch_start, 5, 5, "load.start=/media/data/Unsorted/.watch/start/*.torrent,d.custom1.set=Unsorted"
-      schedule2 = watch_load, 6, 5, "load.normal=/media/data/Unsorted/.watch/load/*.torrent,d.custom1.set=Unsorted"
+      schedule2 = watch_start, 5, 5, "load.start=/media/data/Unsorted/.watch/start/*.torrent"
+      schedule2 = watch_load, 6, 5, "load.normal=/media/data/Unsorted/.watch/load/*.torrent"
 
       # Enable DHT and peer exchange (module defaults to disabled)
       dht.mode.set = auto
