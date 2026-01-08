@@ -181,7 +181,7 @@ in
     "d /export/Serials 0755 root root -"
     "d /export/Music 0755 root root -"
     "d /export/Books 0755 root root -"
-    "d /export/Unsorted 0755 root root -"
+    "d /export/Unsorted 0775 torrents users -"
     "d /export/${primaryUser}-backup 0755 root root -"
     "d /export/nadia 0755 root root -"
 

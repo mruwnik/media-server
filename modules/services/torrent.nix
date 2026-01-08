@@ -29,8 +29,9 @@
       log.open_file = "rtorrent", /media/data/Unsorted/.log/rtorrent.log
       log.add_output = "info", "rtorrent"
 
-      # Watch directory for auto-loading torrents
-      schedule2 = watch_directory, 5, 5, "load.start=/media/data/Unsorted/.watch/*.torrent,d.custom1.set=Unsorted"
+      # Watch directories for auto-loading torrents
+      schedule2 = watch_start, 5, 5, "load.start=/media/data/Unsorted/.watch/start/*.torrent,d.custom1.set=Unsorted"
+      schedule2 = watch_load, 6, 5, "load.normal=/media/data/Unsorted/.watch/load/*.torrent,d.custom1.set=Unsorted"
 
       # Enable DHT and peer exchange (module defaults to disabled)
       dht.mode.set = auto
@@ -49,10 +50,11 @@
     '';
   };
 
-  # Ensure base directory ownership and create hidden directories
-  # Also remove the non-hidden ones the NixOS module creates
+  # Increase file descriptor limit for rtorrent (194 torrents * files per torrent)
+  systemd.services.rtorrent.serviceConfig.LimitNOFILE = 65536;
+
+  # Create hidden directories and remove non-hidden ones the NixOS module creates
   systemd.tmpfiles.rules = [
-    "z /media/data/Unsorted 0775 torrents users -"
     "d /media/data/Unsorted/.downloading 0775 torrents torrents -"
     "d /media/data/Unsorted/.session 0775 torrents torrents -"
     "d /media/data/Unsorted/.watch 0775 torrents torrents -"

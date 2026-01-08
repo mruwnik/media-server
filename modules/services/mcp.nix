@@ -19,7 +19,7 @@
     group = "mcp";
     home = "/var/lib/mcp";
     description = "Local MCP server user";
-    extraGroups = [ "htpasswd-readers" ];  # Needs to read /etc/shared-htpasswd
+    extraGroups = [ "htpasswd-readers" "users" ];  # htpasswd + write to torrent watch dir
   };
   users.groups.mcp = {};
 
@@ -28,6 +28,12 @@
     "d /var/lib/mcp 0750 mcp mcp -"
     "d /var/lib/mcp/repo 0750 mcp mcp -"
   ];
+
+  # Grant mcp user write access to Unsorted for anime downloads
+  system.activationScripts.mcpAnimeAccess = lib.stringAfter [ "users" ] ''
+    ${pkgs.acl}/bin/setfacl -m u:mcp:rwx /media/data/Unsorted 2>/dev/null || true
+    ${pkgs.acl}/bin/setfacl -d -m u:mcp:rwx /media/data/Unsorted 2>/dev/null || true
+  '';
 
   # Clone/update repo on startup
   systemd.services.mcp-setup = {
