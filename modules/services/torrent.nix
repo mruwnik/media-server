@@ -1,6 +1,12 @@
 { config, lib, pkgs, ... }:
 
 {
+  # rtorrent config uses 'sh' without full path - NixOS needs this symlink
+  system.activationScripts.binsh = lib.stringAfter [ "stdio" ] ''
+    mkdir -p /bin
+    ln -sfn ${pkgs.bash}/bin/bash /bin/sh
+  '';
+
   # Open port for incoming peer connections
   networking.firewall.allowedTCPPorts = [ 50000 ];
 
@@ -20,6 +26,11 @@
     configText = ''
       # Override paths to use hidden directories (matching original config)
       session.path.set = /media/data/Unsorted/.session/
+      log.open_file = "rtorrent", /media/data/Unsorted/.log/rtorrent.log
+      log.add_output = "info", "rtorrent"
+
+      # Watch directory for auto-loading torrents
+      schedule2 = watch_directory, 5, 5, "load.start=/media/data/Unsorted/.watch/*.torrent,d.custom1.set=Unsorted"
 
       # Enable DHT and peer exchange (module defaults to disabled)
       dht.mode.set = auto
@@ -38,12 +49,17 @@
     '';
   };
 
-  # Create hidden directories (matching original config)
+  # Ensure base directory ownership and create hidden directories
+  # Also remove the non-hidden ones the NixOS module creates
   systemd.tmpfiles.rules = [
+    "z /media/data/Unsorted 0775 torrents users -"
     "d /media/data/Unsorted/.downloading 0775 torrents torrents -"
     "d /media/data/Unsorted/.session 0775 torrents torrents -"
     "d /media/data/Unsorted/.watch 0775 torrents torrents -"
     "d /media/data/Unsorted/.log 0775 torrents torrents -"
+    "r /media/data/Unsorted/session - - - -"
+    "r /media/data/Unsorted/watch - - - -"
+    "r /media/data/Unsorted/log - - - -"
   ];
 
   # ============================================================

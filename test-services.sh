@@ -28,8 +28,8 @@ if [[ $# -lt 2 ]]; then
     echo "Usage: $0 [--host IP] <username> <password>"
     echo ""
     echo "Examples:"
-    echo "  $0 dan mypassword                    # Test public domains"
-    echo "  $0 --host 192.168.1.100 dan mypass   # Test via local IP"
+    echo "  $0 username password                    # Test public domains"
+    echo "  $0 --host 192.168.1.100 username password   # Test via local IP"
     exit 1
 fi
 

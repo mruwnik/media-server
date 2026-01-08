@@ -4,6 +4,7 @@ result-*
 .direnv/
 .envrc
 *.age
+secrets/*.yaml
 secrets/*.enc
 !secrets/.gitkeep
 

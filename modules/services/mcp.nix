@@ -72,7 +72,7 @@
     after = [ "network-online.target" "mcp.service" ];
     wants = [ "network-online.target" ];
 
-    path = [ pkgs.git pkgs.su ];
+    path = [ pkgs.git pkgs.util-linux ];
 
     serviceConfig = {
       Type = "oneshot";
@@ -98,6 +98,36 @@
         fi
       fi
     '';
+  };
+
+  # Timer to check for new anime every 4 hours
+  systemd.timers.anime-check = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 0/4:00:00";  # Every 4 hours
+      Persistent = true;
+    };
+  };
+
+  systemd.services.anime-check = {
+    description = "Check for new anime episodes";
+    after = [ "network-online.target" "mcp-setup.service" ];
+    wants = [ "network-online.target" ];
+
+    path = [ pkgs.python312 pkgs.uv pkgs.git ];
+
+    environment = {
+      HOME = "/var/lib/mcp";
+      ANIME_BASE_PATH = "/media/data/Unsorted";
+    };
+
+    serviceConfig = {
+      Type = "oneshot";
+      User = "mcp";
+      Group = "mcp";
+      WorkingDirectory = "/var/lib/mcp/repo";
+      ExecStart = "${pkgs.uv}/bin/uv run anime-check";
+    };
   };
 
   # Main MCP service

@@ -4,6 +4,10 @@
   # ============================================================
   # Radicale - CalDAV/CardDAV server
   # ============================================================
+
+  # Radicale needs to read htpasswd file
+  users.users.radicale.extraGroups = [ "htpasswd-readers" ];
+
   services.radicale = {
     enable = true;
     settings = {

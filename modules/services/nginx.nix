@@ -1,30 +1,27 @@
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
+let
+  primaryEmail = config.ahiru.primaryUser.email;
+in
 {
   # Group for services that need to read htpasswd file
   users.groups.htpasswd-readers = {};
 
   # Add nginx to the htpasswd-readers group
   users.users.nginx.extraGroups = [ "htpasswd-readers" ];
+
   # ACME (Let's Encrypt) configuration
   security.acme = {
     acceptTerms = true;
-    defaults.email = "tojad99@gmail.com";
+    defaults.email = primaryEmail;
   };
 
   # Ports 80/443 defined in networking.nix
 
-  # Shared htpasswd file - used by nginx, radicale, mcp, etc.
-  # All services should reference /etc/shared-htpasswd
-  environment.etc."shared-htpasswd" = {
-    text = ''
-      dan:$apr1$7bIsm34C$SZzlRphUURQABM5eMTtO41
-      nadia:$apr1$DQ.OxmB2$w4zbBDza2fotuGf5IHWjh/
-      rumun:$apr1$/VEo9baE$kBUZi8Rjhs1nmAgqYTwL1/
-    '';
-    mode = "0640";  # Only root and htpasswd-readers group
-    group = "htpasswd-readers";
-  };
+  # Shared htpasswd file - created by tmpfiles, populated by deploy-secrets.sh
+  systemd.tmpfiles.rules = [
+    "f /etc/shared-htpasswd 0640 root htpasswd-readers -"
+  ];
 
   services.nginx = {
     enable = true;
@@ -97,7 +94,7 @@
     virtualHosts."media.ahiru.pl" = {
       enableACME = true;
       forceSSL = true;
-      root = "/media/data/www/media";
+      root = "/var/www/media";
 
       # Static files
       locations."/" = {

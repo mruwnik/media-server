@@ -1,5 +1,9 @@
 { config, lib, pkgs, ... }:
 
+let
+  primaryUser = config.ahiru.primaryUser.name;
+  primaryUid = config.ahiru.primaryUser.uid;
+in
 {
   # Firewall ports for file sharing
   networking.firewall = {
@@ -55,7 +59,7 @@
         browseable = "yes";
         "read only" = "yes";
         "guest ok" = "no";
-        "valid users" = "dan nadia rumun";
+        "valid users" = "${primaryUser} nadia rumun";
       };
 
       Anime = {
@@ -63,7 +67,7 @@
         browseable = "yes";
         "read only" = "yes";
         "guest ok" = "no";
-        "valid users" = "dan nadia rumun";
+        "valid users" = "${primaryUser} nadia rumun";
       };
 
       Serials = {
@@ -71,7 +75,7 @@
         browseable = "yes";
         "read only" = "yes";
         "guest ok" = "no";
-        "valid users" = "dan nadia rumun";
+        "valid users" = "${primaryUser} nadia rumun";
       };
 
       Music = {
@@ -79,7 +83,7 @@
         browseable = "yes";
         "read only" = "yes";
         "guest ok" = "no";
-        "valid users" = "dan nadia rumun";
+        "valid users" = "${primaryUser} nadia rumun";
       };
 
       Books = {
@@ -87,7 +91,7 @@
         browseable = "yes";
         "read only" = "yes";
         "guest ok" = "no";
-        "valid users" = "dan nadia rumun";
+        "valid users" = "${primaryUser} nadia rumun";
       };
 
       # Unsorted - read-write for uploads
@@ -96,7 +100,7 @@
         browseable = "yes";
         "read only" = "no";
         "guest ok" = "no";
-        "valid users" = "dan nadia";
+        "valid users" = "${primaryUser} nadia";
         "create mask" = "0664";
         "directory mask" = "0775";
         "force user" = "torrents";
@@ -105,7 +109,7 @@
     };
   };
 
-  # Samba user/group (set password with: sudo smbpasswd -a dan)
+  # Samba user/group (set password with: sudo smbpasswd -a <username>)
   users.groups.samba-users = {};
 
   # ============================================================
@@ -137,8 +141,8 @@
     device = "/media/data/Unsorted";
     options = [ "bind" ];
   };
-  fileSystems."/export/dan-backup" = {
-    device = "/media/data/backups/dan";
+  fileSystems."/export/${primaryUser}-backup" = {
+    device = "/media/data/backups/${primaryUser}";
     options = [ "bind" ];
   };
   fileSystems."/export/nadia" = {
@@ -163,13 +167,14 @@
       /export/Unsorted      192.168.0.0/24(rw,no_subtree_check,insecure,all_squash,anonuid=1001,anongid=1001)
 
       # Backups - read-write
-      /export/dan-backup    192.168.0.0/24(rw,no_subtree_check,insecure,all_squash,anonuid=1000,anongid=1000)
+      /export/${primaryUser}-backup    192.168.0.0/24(rw,no_subtree_check,insecure,all_squash,anonuid=${toString primaryUid},anongid=${toString primaryUid})
       /export/nadia         192.168.0.0/24(rw,no_subtree_check,insecure)
     '';
   };
 
-  # Create export directories
+  # Create export directories and manage /media/data ownership
   systemd.tmpfiles.rules = [
+    # NFS export mount points
     "d /export 0755 root root -"
     "d /export/Films 0755 root root -"
     "d /export/Anime 0755 root root -"
@@ -177,8 +182,27 @@
     "d /export/Music 0755 root root -"
     "d /export/Books 0755 root root -"
     "d /export/Unsorted 0755 root root -"
-    "d /export/dan-backup 0755 root root -"
+    "d /export/${primaryUser}-backup 0755 root root -"
     "d /export/nadia 0755 root root -"
+
+    # Media directories - primaryUser:users owns most, torrents:users owns Unsorted
+    # 'd' creates if missing, 'z' sets ownership on existing directories
+    "d /media/data 0755 ${primaryUser} users -"
+    "z /media/data 0755 ${primaryUser} users -"
+    "d /media/data/Anime 0755 ${primaryUser} users -"
+    "z /media/data/Anime 0755 ${primaryUser} users -"
+    "d /media/data/Audio 0755 ${primaryUser} users -"
+    "z /media/data/Audio 0755 ${primaryUser} users -"
+    "d /media/data/Books 0755 ${primaryUser} users -"
+    "z /media/data/Books 0755 ${primaryUser} users -"
+    "d /media/data/Films 0755 ${primaryUser} users -"
+    "z /media/data/Films 0755 ${primaryUser} users -"
+    "d /media/data/Music 0755 ${primaryUser} users -"
+    "z /media/data/Music 0755 ${primaryUser} users -"
+    "d /media/data/Serials 0755 ${primaryUser} users -"
+    "z /media/data/Serials 0755 ${primaryUser} users -"
+    "d /media/data/Unsorted 0775 torrents users -"
+    "z /media/data/Unsorted 0775 torrents users -"
   ];
 
   # Torrents user for file ownership (UID 1001 to match NFS anonuid)

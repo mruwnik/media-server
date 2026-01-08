@@ -1,5 +1,8 @@
 { config, lib, pkgs, ... }:
 
+let
+  primaryUser = config.ahiru.primaryUser.name;
+in
 {
   # Open port for MPD HTTP stream (direct access from LAN)
   networking.firewall.allowedTCPPorts = [ 8030 ];
@@ -153,7 +156,7 @@
         fi
       }
 
-      create_user "dan" 1      # admin
+      create_user "${primaryUser}" 1      # admin
       create_user "nadia" 0    # reader
       create_user "rumun" 0    # reader
     '';

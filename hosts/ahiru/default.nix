@@ -17,5 +17,8 @@
     ../../modules/services/dns.nix
     ../../modules/services/backup.nix
     ../../modules/services/mcp.nix
+    ../../modules/services/mail.nix
+    ../../modules/services/updates.nix
+    ../../modules/services/monitoring.nix
   ];
 }

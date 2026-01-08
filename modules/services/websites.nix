@@ -1,8 +1,8 @@
 { config, lib, pkgs, ... }:
 
 let
-  # Primary user name for SSH key path (matches users.nix)
-  primaryUser = "dan";
+  # Primary user name for SSH key path
+  primaryUser = config.ahiru.primaryUser.name;
 
   # Shell function to apply theme patches (used by both services)
   applyThemePatches = ''
@@ -92,12 +92,20 @@ in
       if [ -d "$BLOG_DIR/.git" ]; then
         cd "$BLOG_DIR"
         git fetch origin
+
+        # Determine remote branch (main or master)
+        if git show-ref --verify --quiet refs/remotes/origin/main; then
+          REMOTE_BRANCH="origin/main"
+        else
+          REMOTE_BRANCH="origin/master"
+        fi
+
         LOCAL=$(git rev-parse HEAD)
-        REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master)
+        REMOTE=$(git rev-parse "$REMOTE_BRANCH")
 
         if [ "$LOCAL" != "$REMOTE" ]; then
           echo "Updates found, rebuilding..."
-          git reset --hard "$REMOTE"
+          git reset --hard "$REMOTE_BRANCH"
           git submodule update --init --recursive
 
           apply_theme_patches "$BLOG_DIR"
@@ -140,17 +148,16 @@ in
     };
 
     script = ''
-      mkdir -p /media/data/www/media/img
-      cp /etc/www/media/index.html /media/data/www/media/index.html
-      cp /etc/www/media/img/bus.jpg /media/data/www/media/img/bus.jpg
-      chown -R nginx:nginx /media/data/www/media
+      mkdir -p /var/www/media/img
+      cp /etc/www/media/index.html /var/www/media/index.html
+      cp /etc/www/media/img/bus.jpg /var/www/media/img/bus.jpg
+      chown -R nginx:nginx /var/www/media
     '';
   };
 
   # Ensure directories exist
   systemd.tmpfiles.rules = [
     "d /var/www 0755 nginx nginx -"
-    "d /media/data/www 0755 nginx nginx -"
-    "d /media/data/www/media 0755 nginx nginx -"
+    "d /var/www/media 0755 nginx nginx -"
   ];
 }

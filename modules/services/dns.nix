@@ -5,6 +5,12 @@
   # Blocky - DNS ad-blocking (replaces Pi-hole)
   # ============================================================
 
+  # Allowlist file for domains that shouldn't be blocked
+  environment.etc."blocky/allowlist.txt".text = ''
+    # Filen cloud backup (WebDAV)
+    webdav.filen.io
+  '';
+
   # Open DNS port
   networking.firewall.allowedUDPPorts = [ 53 ];
   networking.firewall.allowedTCPPorts = [ 53 ];
@@ -45,7 +51,7 @@
         # Allowlist for false positives
         allowlists = {
           ads = [
-            # Add any domains that get incorrectly blocked
+            "/etc/blocky/allowlist.txt"
           ];
         };
         clientGroupsBlock = {
