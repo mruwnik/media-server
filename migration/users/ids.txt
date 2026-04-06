@@ -1,0 +1,6 @@
+uid=1001(dan) gid=100(users) groups=100(users),0(root),4(adm),27(sudo),33(www-data),50(staff),111(ssh),1001(dan),1002(ftp-access),1003(sftp-access),989(docker)
+uid=1003(torrents) gid=1005(torrents) groups=1005(torrents),33(www-data)
+uid=1002(calibre) gid=1004(calibre) groups=1004(calibre)
+uid=1005(radicale) gid=1006(radicale) groups=1006(radicale)
+uid=1009(git) gid=1010(git) groups=1010(git),111(ssh)
+uid=1007(cryptpad) gid=1008(cryptpad) groups=1008(cryptpad)
