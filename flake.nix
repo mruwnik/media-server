@@ -2,7 +2,7 @@
   description = "NixOS configuration for ahiru.pl home server (Raspberry Pi 4)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
 
     raspberry-pi-nix = {
       url = "github:nix-community/raspberry-pi-nix";

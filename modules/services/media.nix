@@ -99,7 +99,7 @@ in
     description = "Rescan MPD music library";
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.mpc-cli}/bin/mpc update --wait";
+      ExecStart = "${pkgs.mpc}/bin/mpc update --wait";
       User = "mpd";
     };
   };
@@ -114,7 +114,7 @@ in
   };
 
   environment.systemPackages = with pkgs; [
-    mpc-cli     # MPD command-line client
+    mpc     # MPD command-line client
     alsa-utils  # aplay, amixer, etc.
     sqlite      # For calibre-web user sync
   ];

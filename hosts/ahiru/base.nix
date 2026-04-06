@@ -14,6 +14,19 @@
 
   nixpkgs.config.allowUnfree = true;
 
+  # Disable pipewire's libcamera plugin - incompatible with raspberry-pi-nix's
+  # older libcamera fork (missing ControlId::vendor() and isArray() methods)
+  nixpkgs.overlays = [
+    (final: prev: {
+      pipewire = prev.pipewire.overrideAttrs (old: {
+        mesonFlags = (old.mesonFlags or []) ++ [
+          "-Dlibcamera=disabled"
+        ];
+        buildInputs = builtins.filter (dep: dep != null && (dep.pname or "") != "libcamera") (old.buildInputs or []);
+      });
+    })
+  ];
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   time.timeZone = "Europe/Warsaw";
