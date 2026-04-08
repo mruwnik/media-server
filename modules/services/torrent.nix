@@ -24,6 +24,16 @@
 
     # Only add settings not provided by the NixOS module
     configText = ''
+      # Flood compatibility shims for rakshasa rtorrent >= 0.15.1.
+      # Flood detects JSON-RPC support and unconditionally calls
+      # load.start_throw / load.throw and d.down.sequential[.set],
+      # which only exist in the jesec fork. Without these, adding
+      # torrents via the web UI returns "method not found".
+      method.redirect = load.throw, load.normal
+      method.redirect = load.start_throw, load.start
+      method.insert = d.down.sequential, value|const, 0
+      method.insert = d.down.sequential.set, value|const, 0
+
       # Override paths to use hidden directories (matching original config)
       session.path.set = /media/data/Unsorted/.session/
       log.open_file = "rtorrent", /media/data/Unsorted/.log/rtorrent.log
