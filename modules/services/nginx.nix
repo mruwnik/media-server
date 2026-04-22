@@ -32,6 +32,15 @@ in
     recommendedProxySettings = true;
     recommendedTlsSettings = true;
 
+    # Catch-all default server: reject requests that don't match a known vhost
+    # (e.g. direct hits to the server's IP). Prevents nginx from borrowing
+    # ahiru.pl's cert and serving its content to unknown-Host requests.
+    virtualHosts."_default_" = {
+      default = true;
+      rejectSSL = true;
+      locations."/".return = "444";
+    };
+
     # ahiru.pl - Hugo static blog
     virtualHosts."ahiru.pl" = {
       enableACME = true;
