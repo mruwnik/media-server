@@ -10,6 +10,15 @@
     "snd_bcm2835.enable_headphones=1"
   ];
 
+  # CVE-2026-31431 ("Copy Fail") mitigation: block algif_aead until the
+  # patched kernel lands in the channel. AF_ALG isn't used by SSH/TLS/LUKS.
+  # `blacklist` alone won't stop the kernel's request_module() autoload from
+  # AF_ALG socket(); the `install ... /bin/false` form is what actually blocks it.
+  boot.blacklistedKernelModules = [ "algif_aead" ];
+  boot.extraModprobeConfig = ''
+    install algif_aead /bin/false
+  '';
+
   # Root filesystem on USB HDD (sda1) - 30GB partition
   # mkForce required to override raspberry-pi-nix sd-image defaults
   fileSystems."/" = {
