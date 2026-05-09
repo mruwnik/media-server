@@ -109,12 +109,19 @@ in
       if [ -f "$NIXOS_DIR/flake.lock" ]; then
         cp "$NIXOS_DIR/flake.lock" /tmp/flake.lock.before
 
-        if nix flake update --flake "$NIXOS_DIR" 2>/dev/null; then
+        echo "Checking flake inputs for updates..."
+        if nix flake update --refresh --flake "$NIXOS_DIR" 2>&1; then
           if ! diff -q /tmp/flake.lock.before "$NIXOS_DIR/flake.lock" >/dev/null 2>&1; then
-            FLAKE_UPDATES=$(diff /tmp/flake.lock.before "$NIXOS_DIR/flake.lock" | grep -E "^[+-].*rev" | head -20 || true)
+            FLAKE_UPDATES=$(diff -u /tmp/flake.lock.before "$NIXOS_DIR/flake.lock" | grep -E "^[+-].*\"(rev|lastModified)\"" | head -40 || true)
+            echo "Flake updates detected:"
+            echo "$FLAKE_UPDATES"
+          else
+            echo "No flake input updates."
           fi
           # Restore original - don't auto-apply flake updates
           cp /tmp/flake.lock.before "$NIXOS_DIR/flake.lock"
+        else
+          echo "nix flake update failed (ignoring)."
         fi
         rm -f /tmp/flake.lock.before
       fi
