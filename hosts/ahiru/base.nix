@@ -16,6 +16,8 @@
 
   # Disable pipewire's libcamera plugin - incompatible with raspberry-pi-nix's
   # older libcamera fork (missing ControlId::vendor() and isArray() methods)
+  # Relax calibre-web's `requests<2.33.0` upper bound: nixpkgs ships 2.33.1
+  # and the runtime check otherwise fails the build.
   nixpkgs.overlays = [
     (final: prev: {
       pipewire = prev.pipewire.overrideAttrs (old: {
@@ -23,6 +25,17 @@
           "-Dlibcamera=disabled"
         ];
         buildInputs = builtins.filter (dep: dep != null && (dep.pname or "") != "libcamera") (old.buildInputs or []);
+      });
+      calibre-web = prev.calibre-web.overrideAttrs (old: {
+        pythonRelaxDeps = (old.pythonRelaxDeps or []) ++ [ "requests" ];
+      });
+      # Pi 4 is too slow for upstream gjs's 30s per-test timeout
+      # (CommandLine, Internal API tests). Skip check phase and tell
+      # meson not to require GTK at configure time (which is only there
+      # for the now-skipped tests).
+      gjs = prev.gjs.overrideAttrs (old: {
+        doCheck = false;
+        mesonFlags = (old.mesonFlags or []) ++ [ "-Dskip_gtk_tests=true" ];
       });
     })
   ];
