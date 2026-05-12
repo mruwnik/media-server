@@ -40,6 +40,8 @@
     description = "Setup Local MCP repository";
     wantedBy = [ "multi-user.target" ];
     before = [ "mcp.service" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
 
     path = [ pkgs.git pkgs.openssh ];
 
