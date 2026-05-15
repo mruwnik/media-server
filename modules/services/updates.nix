@@ -6,7 +6,9 @@ let
   # Closure-aware analyzer: given the old and new flake.lock and a working
   # directory holding the updated flake, emits an email body to stdout.
   # First line is the subject (without the [ahiru] prefix).
-  analyzeFlakeUpdate = pkgs.writers.writePython3Bin "analyze-flake-update" { } ''
+  analyzeFlakeUpdate = pkgs.writers.writePython3Bin "analyze-flake-update" {
+    flakeIgnore = [ "E501" "F541" "F841" "W503" "E731" ];
+  } ''
     import json
     import os
     import re
@@ -158,7 +160,7 @@ let
         if not changes:
             print("No upstream updates")
             print()
-            print(f"Daily flake-update check on ahiru.pl found no new revisions on any input.")
+            print("Daily flake-update check on ahiru.pl found no new revisions on any input.")
             print("(Sent as a heartbeat — service is alive.)")
             return
 
@@ -197,7 +199,6 @@ let
 
         sec_versions = [v for v in new_versions if SECURITY_PATTERN.match(v[0])]
         sec_hash_only = [h for h in hash_only if SECURITY_PATTERN.match(h[0])]
-        total_cves = sum(len(c) for c in cves_by_pkg.values())
         closure_cves = sum(
             len(cves_by_pkg.get(pkg, [])) for pkg, _, _ in new_versions
         )
