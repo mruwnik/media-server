@@ -46,11 +46,26 @@
     memoryPercent = 50;
   };
 
-  # Reduce writes - logs to tmpfs
+  # Persistent logs on the USB-HDD root so crashes survive a reboot.
+  # (Was volatile/tmpfs from the SD-card era; root now lives on a 30GB ext4
+  # partition on the USB disk, where journal writes are cheap. Capped at 500M
+  # so a log storm can't fill /.) Complemented by the per-minute black-box
+  # recorder in modules/services/monitoring.nix.
   services.journald.extraConfig = ''
-    Storage=volatile
+    Storage=persistent
+    SystemMaxUse=500M
+    SystemMaxFileSize=50M
     RuntimeMaxUse=64M
   '';
+
+  # When the USB disk stalls, tasks pile up in uninterruptible sleep (D-state)
+  # and the box wedges with no trace. Lower the hung-task warning threshold and
+  # never stop warning, so a stalled task dumps its kernel stack into the
+  # now-persistent journal. Warn-only: hung_task_panic stays 0 (no auto-reboot).
+  boot.kernel.sysctl = {
+    "kernel.hung_task_timeout_secs" = 60;
+    "kernel.hung_task_warnings" = -1;
+  };
 
   # Use tmpfs for /tmp
   boot.tmp.useTmpfs = true;
