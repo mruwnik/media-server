@@ -3,22 +3,34 @@
 # Shared helpers for the ahiru test battery. Source from a test script:
 #   . "$(dirname "$0")/lib.sh"
 #
-# Provides coloured PASS/FAIL/SKIP output, running counters, and a handful of
-# check_* helpers. Style mirrors maip-server's provision/monitoring/tests.
-# No `set -e` on purpose — every check should run even if an earlier one fails.
+# Output contract (mirrors maip-server's provision/monitoring/lib.sh):
+#   stderr = the human report — section headers + PASS/FAIL/SKIP lines, coloured.
+#   stdout = the alert payload — failure lines only, empty when healthy. This is
+#            what `finish` prints so a checker can be piped:  diagnostics.sh | notify.sh
+# No `set -e` on purpose — every check runs even if an earlier one fails.
 
-if [ -t 1 ]; then
+if [ -t 2 ]; then
     RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'; CYAN=$'\033[0;36m'; NC=$'\033[0m'
 else
     RED=""; GREEN=""; YELLOW=""; CYAN=""; NC=""
 fi
 
 PASSED=0; FAILED=0; SKIPPED=0
+FAILURES=""   # newline-joined failure lines — the stdout payload
 
-section() { printf '\n%s== %s ==%s\n' "$CYAN" "$1" "$NC"; }
-pass()    { printf '  %sPASS%s %s\n' "$GREEN" "$NC" "$1"; PASSED=$((PASSED + 1)); }
-fail()    { printf '  %sFAIL%s %s%s\n' "$RED" "$NC" "$1" "${2:+ — $2}"; FAILED=$((FAILED + 1)); }
-skip()    { printf '  %sSKIP%s %s%s\n' "$YELLOW" "$NC" "$1" "${2:+ — $2}"; SKIPPED=$((SKIPPED + 1)); }
+section() { printf '\n%s== %s ==%s\n' "$CYAN" "$1" "$NC" >&2; }
+pass()    { printf '  %sPASS%s %s\n' "$GREEN" "$NC" "$1" >&2; PASSED=$((PASSED + 1)); }
+skip()    { printf '  %sSKIP%s %s%s\n' "$YELLOW" "$NC" "$1" "${2:+ — $2}" >&2; SKIPPED=$((SKIPPED + 1)); }
+
+# fail "desc" ["detail"] — record one payload line (newlines collapsed so each
+# failure stays a single line) and print it to the human report.
+fail() {
+    local line="$1${2:+ — $2}"
+    line=$(printf '%s' "$line" | tr '\n' ' ')
+    FAILURES="${FAILURES}${FAILURES:+$'\n'}${line}"
+    printf '  %sFAIL%s %s\n' "$RED" "$NC" "$line" >&2
+    FAILED=$((FAILED + 1))
+}
 
 # check_cmd "desc" cmd args...   — pass iff the command exits 0
 check_cmd() {
@@ -66,11 +78,14 @@ check_ctype() {
     esac
 }
 
-# summary   — print totals; return non-zero iff anything failed
-summary() {
-    printf '\n%s========================================%s\n' "$CYAN" "$NC"
+# finish — print the human summary to stderr, the failure payload to stdout,
+# and return non-zero iff anything failed. End a checker with:  finish
+finish() {
+    printf '\n%s========================================%s\n' "$CYAN" "$NC" >&2
     printf '  %sPASS %d%s   %sFAIL %d%s   %sSKIP %d%s\n' \
-        "$GREEN" "$PASSED" "$NC" "$RED" "$FAILED" "$NC" "$YELLOW" "$SKIPPED" "$NC"
-    printf '%s========================================%s\n' "$CYAN" "$NC"
-    [ "$FAILED" -eq 0 ]
+        "$GREEN" "$PASSED" "$NC" "$RED" "$FAILED" "$NC" "$YELLOW" "$SKIPPED" "$NC" >&2
+    printf '%s========================================%s\n' "$CYAN" "$NC" >&2
+    [ -z "$FAILURES" ] && return 0
+    printf '%s\n' "$FAILURES"   # stdout = alert payload for notify.sh
+    return 1
 }

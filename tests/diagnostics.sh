@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 #
-# On-Pi component checks — run THIS on ahiru (it hits localhost upstreams and
-# inspects systemd/filesystem directly, so it needs no basic-auth credentials).
+# diagnostics.sh — full ahiru checker (manual debugging + monitoring source).
 #
-#   ssh ahiru.pl 'cd ~/nixos && ./tests/run-local.sh'
-#   # or, without deploying, let run-all.sh ship it over for you.
+# Runs the on-Pi component checks (localhost upstreams, systemd, filesystem —
+# no credentials needed) AND the public-domain checks from external.sh (routed
+# through ahiru.pl / media.ahiru.pl, so it also exercises DNS/TLS/nginx).
 #
-# A few checks read calibre's SQLite DBs (world-readable) and one drops to the
+# Output contract (see lib.sh): stderr = human report; stdout = failure lines
+# only (empty when healthy). Pipe it to alert:
+#   diagnostics.sh | notify.sh "ahiru health"
+#
+# Usage (run on the Pi):
+#   ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh [-u user:pass]'
+# The -u creds enable the authenticated public-route checks.
+#
+# Some checks read calibre's SQLite DBs (world-readable) and one drops to the
 # `calibre` user to confirm write access — that one needs passwordless sudo and
 # is SKIPped otherwise.
 
 set -uo pipefail
 cd "$(dirname "$0")"
-. ./lib.sh
+. ./external.sh    # pulls in lib.sh and defines external_checks() (guarded)
+
+AUTH=""
+[ "${1:-}" = "-u" ] && AUTH="${2:-}"
 
 # Mimic what nginx forwards to calibre-web: reverse-proxy auth header + subpath.
 CW_HDR=(-H 'X-Remote-User:dan' -H 'X-Script-Name:/books')
@@ -81,25 +92,19 @@ check_http "mcp discovery (:3001)" 200 http://127.0.0.1:3001/.well-known/oauth-a
 
 # ----------------------------------------------------------------------------
 section "MPD"
-# Greeting on the control port is "OK MPD <version>".
-if exec 3<>/dev/tcp/127.0.0.1/6600 2>/dev/null; then
-    read -r -t 5 greeting <&3 || greeting=""
-    exec 3<&- 3>&-
-    case "$greeting" in
-        OK\ MPD*) pass "control port :6600 (${greeting%$'\r'})" ;;
-        *)        fail "control port :6600" "unexpected greeting '${greeting}'" ;;
-    esac
-else
-    fail "control port :6600" "connection refused"
-fi
-# The httpd output serves on demand — the port is only bound while MPD has a
-# stream. When idle (nothing playing) it's legitimately absent, so SKIP rather
-# than FAIL; only assert audio when it's actually listening.
-if ss -tln 2>/dev/null | grep -q ':8030 '; then
-    check_ctype "HTTP stream :8030 is audio" audio/ http://127.0.0.1:8030/
-else
-    skip "HTTP stream :8030" "not listening (MPD idle — serves on playback)"
-fi
+# Greeting on the control port is "OK MPD <version>". Do the connect in a
+# subshell — `exec <>/dev/tcp` in the current shell with a `2>` would clobber
+# this script's stderr for every line after it.
+greeting=$(exec 3<>/dev/tcp/127.0.0.1/6600 2>/dev/null && IFS= read -r -t 5 g <&3 && printf '%s' "$g")
+case "$greeting" in
+    OK\ MPD*) pass "control port :6600 (${greeting%$'\r'})" ;;
+    "")       fail "control port :6600" "no response / connection refused" ;;
+    *)        fail "control port :6600" "unexpected greeting '${greeting}'" ;;
+esac
+# The httpd output serves on demand (the port is only bound while MPD has a
+# stream). Something is normally playing here, so an absent stream is a real
+# signal — idle MPD or a dead encoder both warrant a look — hence FAIL not SKIP.
+check_ctype "HTTP stream :8030 is audio" audio/ http://127.0.0.1:8030/
 
 # ----------------------------------------------------------------------------
 section "torrent backend"
@@ -129,4 +134,9 @@ else
     skip "throttling check" "vcgencmd needs the video group or sudo"
 fi
 
-summary
+# ----------------------------------------------------------------------------
+# Same public-surface checks as external.sh, but from the Pi — hairpins out
+# through the real domains, so DNS/TLS/nginx are covered end to end too.
+external_checks "$AUTH"
+
+finish

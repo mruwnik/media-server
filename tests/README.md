@@ -1,48 +1,50 @@
 # ahiru test battery
 
-Bash smoke tests for the components running on the Pi. Most checks run **on the
-Pi** (localhost upstreams + systemd + filesystem, no credentials needed); a thin
-**external** layer runs **from your laptop** to verify the public-facing surface
-(DNS, TLS, the basic-auth gate).
+Bash smoke tests for the components running on the Pi, plus a split-out
+notifier. Modelled on `../../maip-server/provision/monitoring` — same output
+contract: the human report goes to **stderr**, while **stdout carries only the
+failure lines** (empty when healthy), so a checker pipes straight into the
+notifier:
 
-Style follows `../../maip-server/provision/monitoring/tests`: plain bash, a
-shared `lib.sh` with coloured `PASS`/`FAIL`/`SKIP` and running counters, exit
-non-zero if anything fails.
+```sh
+diagnostics.sh | notify.sh "ahiru health"
+```
 
 ## Files
 
-| Script         | Where it runs | What it checks |
-|----------------|---------------|----------------|
-| `lib.sh`       | sourced       | helpers: `check_http`, `check_up`, `check_content`, `check_ctype`, `check_cmd`, `summary` |
-| `run-local.sh` | **on the Pi** | systemd units active, no failed units, calibre library non-empty + covers serve as images + write access, mympd/flood/radicale/mcp upstreams, MPD control port + HTTP stream, rtorrent rpc socket, disk usage, under-voltage/throttling |
-| `external.sh`  | your laptop   | blog homepage/404, MCP discovery, portal index, `/books` `/music` `/torrents` auth gate (401), optional authed routes |
-| `run-all.sh`   | your laptop   | runs `external.sh` locally, then ships `run-local.sh` to the Pi over SSH and runs it |
+| Script           | Where it runs        | What it does |
+|------------------|----------------------|--------------|
+| `lib.sh`         | sourced              | helpers (`check_http`, `check_up`, `check_content`, `check_ctype`, `check_cmd`), coloured `PASS`/`FAIL`/`SKIP`, and `finish` (prints the failure payload to stdout) |
+| `diagnostics.sh` | **on the Pi**        | the full checker: systemd units, no failed units, calibre library/covers/write (regression guards), mympd/flood/radicale/mcp upstreams, MPD control port + HTTP stream, rtorrent socket, disk, under-voltage — **then** the public-domain checks from `external.sh` (hairpin via the real domains) |
+| `external.sh`    | your laptop (or sourced) | public surface only: blog/404/MCP discovery, portal, `/books·/music·/torrents` auth gate (401), optional authed routes. Defines `external_checks` that `diagnostics.sh` reuses |
+| `notify.sh`      | the Pi (cron/manual) | reads a message on stdin and sends it to email (msmtp) + Discord; **no-op on empty stdin** |
 
 ## Usage
 
 ```bash
-# Everything, from your laptop (external + on-Pi via SSH):
-./tests/run-all.sh
-./tests/run-all.sh -u USER:PASS          # also exercise authenticated routes
-AHIRU_SSH=192.168.1.50 ./tests/run-all.sh # override SSH host
-
-# Just the public surface:
+# Public surface, from your laptop:
 ./tests/external.sh
-./tests/external.sh -u USER:PASS
+./tests/external.sh -u USER:PASS          # also exercise authenticated routes
 
-# Just the Pi-side checks (on the Pi, or via ssh):
-ssh ahiru.pl 'cd ~/nixos && ./tests/run-local.sh'
+# Full checker, on the Pi:
+ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh'
+ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh -u USER:PASS'
+
+# Check + alert (silent unless something failed):
+ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh | ./tests/notify.sh "ahiru health"'
 ```
-
-`run-all.sh` copies `lib.sh` + `run-local.sh` to a temp dir on the Pi before
-running, so the Pi's checkout doesn't need to be up to date.
 
 ## Notes
 
+- `notify.sh` takes the alert email from `$NOTIFY_EMAIL`/`$MAILTO`, else
+  `notify_email` in `/etc/monitoring-config` (the file the health-check already
+  uses); Discord from `$DISCORD_WEBHOOK_URL` or `/etc/ahiru-discord-webhook`.
+  Each channel self-guards and is skipped if unconfigured.
 - The calibre **write-access** check drops to the `calibre` user and needs
   passwordless `sudo`; it `SKIP`s otherwise.
-- The covers and library-non-empty checks are regression guards for the two
-  calibre-web bugs fixed in commit `6aade67` (srcset/sub_filter; language filter).
-- `USER:PASS` is the shared basic-auth credential (from `/etc/shared-htpasswd`).
-  Nothing is stored — pass it on the command line only when you want the authed
-  checks.
+- Covers and library-non-empty are regression guards for the two calibre-web
+  bugs fixed in `6aade67` (srcset/sub_filter; language filter).
+- `monitoring.nix`'s hourly health-check still has its own inline alerting and
+  calls the old `/root/test-services.sh`. It can be repointed at
+  `diagnostics.sh | notify.sh` — not done here to avoid changing the live alert
+  path without a heads-up.
