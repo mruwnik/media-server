@@ -28,10 +28,19 @@ in
     };
   };
 
-  # Calibre user - system user to access Books directory
+  # Calibre user - system user to access Books directory.
+  # Member of `users` (the library's owning group) so calibre-web can WRITE the
+  # library: edit metadata, regenerate covers, and accept uploads. The library
+  # dirs are setgid + group=users, so new entries stay group-owned by users.
+  # NB: /media/data/Books uses POSIX ACLs with a restrictive mask, so plain
+  # `chmod g+w` is NOT enough — the mask caps effective group perms at r-x. The
+  # tree was granted group write with (one-time, persists on the data partition):
+  #   setfacl -R -m g:users:rwx /media/data/Books
+  #   setfacl -R -d -m g:users:rwx /media/data/Books   # default for new files
   users.users.calibre = {
     isSystemUser = true;
     group = "calibre";
+    extraGroups = [ "users" ];
     home = "/media/data/Books";
     description = "Calibre-web service user";
   };
@@ -150,7 +159,12 @@ in
         EXISTS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM user WHERE name='$user';")
         if [ "$EXISTS" -eq 0 ]; then
           echo "Creating calibre-web user: $user (role=$role)"
-          sqlite3 "$DB" "INSERT INTO user (name, email, password, role, sidebar_view, default_language, locale, view_settings) VALUES ('$user', '$user@local', '''''', $role, 4095, 'en', 'en', '${"{}"}');"
+          # NB: default_language is calibre-web's *book-content* language filter
+          # (User.filter_language() returns it), NOT the UI language. It must be
+          # 'all' or the user sees only books whose language matches exactly.
+          # The library uses ISO 639-2 codes ('eng', 'pol', ...), so 'en' matched
+          # zero books and the library appeared empty. locale ('en') is the UI lang.
+          sqlite3 "$DB" "INSERT INTO user (name, email, password, role, sidebar_view, default_language, locale, view_settings) VALUES ('$user', '$user@local', '''''', $role, 4095, 'all', 'en', '${"{}"}');"
         else
           echo "User $user already exists"
         fi

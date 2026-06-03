@@ -111,7 +111,12 @@ in
         index = "index.html";
       };
 
-      # Calibre-web - /books (use sub_filter to rewrite absolute paths)
+      # Calibre-web - /books
+      # Use calibre-web's built-in reverse-proxy support (ReverseProxied reads
+      # X-Script-Name) so Flask's url_for() prefixes EVERY generated URL with
+      # /books. This replaces the old sub_filter hack, which rewrote src="/ but
+      # not srcset="/, leaving cover thumbnails (/cover/<id>/sm) un-prefixed and
+      # 404ing — so the grid showed blank covers.
       locations."/books" = {
         return = "301 /books/";
       };
@@ -119,26 +124,15 @@ in
         proxyPass = "http://127.0.0.1:8083/";
         proxyWebsockets = true;
         basicAuthFile = "/etc/shared-htpasswd";
+        # NB: do NOT set Host / X-Forwarded-Host / X-Forwarded-For here —
+        # recommendedProxySettings already includes them. Duplicating Host sends
+        # two Host headers, which calibre-web's Tornado rejects ("Multiple host
+        # headers not allowed") → 502. Only the calibre-specific headers belong
+        # here; X-Scheme (not X-Forwarded-Proto) is what ReverseProxied reads.
         extraConfig = ''
           proxy_set_header X-Remote-User $remote_user;
-          proxy_set_header Accept-Encoding "";
-          sub_filter_once off;
-          sub_filter_types text/html text/css application/javascript;
-          sub_filter 'href="/' 'href="/books/';
-          sub_filter 'src="/' 'src="/books/';
-          sub_filter 'action="/' 'action="/books/';
-          sub_filter 'url(/' 'url(/books/';
-          sub_filter '"/static/' '"/books/static/';
-          sub_filter '"/login' '"/books/login';
-          sub_filter '"/logout' '"/books/logout';
-          sub_filter '"/me' '"/books/me';
-          sub_filter '"/admin' '"/books/admin';
-          sub_filter '"/shelf' '"/books/shelf';
-          sub_filter '"/book' '"/books/book';
-          sub_filter '"/read' '"/books/read';
-          sub_filter '"/ajax' '"/books/ajax';
-          sub_filter '"/tasks' '"/books/tasks';
-          proxy_redirect / /books/;
+          proxy_set_header X-Script-Name /books;
+          proxy_set_header X-Scheme $scheme;
         '';
       };
 
