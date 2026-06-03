@@ -151,8 +151,11 @@ in
         exit 0
       fi
 
-      # Create users with appropriate roles
-      # role=1 is admin, role=0 is reader (can browse/download)
+      # Create users with appropriate roles. `role` is a calibre-web permission
+      # bitmask: ADMIN=1, DOWNLOAD=2, UPLOAD=4, EDIT=8, PASSWD=16, ANON=32,
+      # EDIT_SHELVES=64, DELETE=128, VIEWER=256. 479 = the full admin set (all
+      # but ANON) — needed to UPLOAD/download/edit from the web UI; admin(1)
+      # alone only unlocks the settings panel. role=0 = browse only (no download).
       create_user() {
         local user=$1
         local role=$2
@@ -170,7 +173,7 @@ in
         fi
       }
 
-      create_user "${primaryUser}" 1      # admin
+      create_user "${primaryUser}" 479    # full admin (incl. upload/download/edit)
       create_user "nadia" 0    # reader
       create_user "rumun" 0    # reader
     '';
