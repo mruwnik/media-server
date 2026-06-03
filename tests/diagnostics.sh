@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 #
-# diagnostics.sh — full ahiru checker (manual debugging + monitoring source).
-#
-# Runs the on-Pi component checks (localhost upstreams, systemd, filesystem —
-# no credentials needed) AND the public-domain checks from external.sh (routed
-# through ahiru.pl / media.ahiru.pl, so it also exercises DNS/TLS/nginx).
+# diagnostics.sh — full ahiru checker. Runs every checks/*.sh (the on-Pi
+# component checks PLUS the public-domain checks, which hairpin through
+# ahiru.pl / media.ahiru.pl so DNS/TLS/nginx are covered end to end).
 #
 # Output contract (see lib.sh): stderr = human report; stdout = failure lines
 # only (empty when healthy). Pipe it to alert:
@@ -12,131 +10,33 @@
 #
 # Usage (run on the Pi):
 #   ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh [-u user:pass]'
-# The -u creds enable the authenticated public-route checks.
+# The -u creds enable the authenticated route checks (radicale, /books, …).
 #
-# Some checks read calibre's SQLite DBs (world-readable) and one drops to the
-# `calibre` user to confirm write access — that one needs passwordless sudo and
-# is SKIPped otherwise.
-
+# To run a SUBSET (e.g. from the hourly monitor), invoke the check scripts
+# directly:  tests/checks/systemd.sh tests/checks/backups.sh | notify.sh
+#
 set -uo pipefail
 cd "$(dirname "$0")"
-. ./external.sh    # pulls in lib.sh and defines external_checks() (guarded)
+. ./lib.sh   # for colours in the overall verdict line
 
-AUTH=""
-[ "${1:-}" = "-u" ] && AUTH="${2:-}"
+# Order: cheap/local first, public (network) last.
+CHECKS="systemd calibre media mpd torrent backups host public"
 
-# Mimic what nginx forwards to calibre-web: reverse-proxy auth header + subpath.
-CW_HDR=(-H 'X-Remote-User:dan' -H 'X-Script-Name:/books')
-BOOKS_DB=/media/data/Books/metadata.db
-APP_DB=/var/lib/calibre-web/app.db
+payload=$(mktemp "${TMPDIR:-/tmp}/ahiru-diag.XXXXXX")
+trap 'rm -f "$payload"' EXIT
 
-# ----------------------------------------------------------------------------
-section "systemd units active"
-for unit in nginx mpd mympd rtorrent flood calibre-web radicale mcp; do
-    check_cmd "$unit" systemctl is-active --quiet "$unit"
+rc=0
+for c in $CHECKS; do
+    # stderr (the report) streams live; stdout (failures) is collected for notify.
+    ./checks/"$c".sh "$@" >>"$payload" || rc=1
 done
 
-section "no failed units"
-failed=$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}' | paste -sd' ' -)
-if [ -z "$failed" ]; then pass "systemctl --failed is empty"; else fail "failed units" "$failed"; fi
-
-# ----------------------------------------------------------------------------
-section "calibre-web (:8083) + library"
-check_http "index loads" 200 http://127.0.0.1:8083/ "${CW_HDR[@]}"
-
-if command -v sqlite3 >/dev/null 2>&1 && [ -r "$BOOKS_DB" ]; then
-    # Library non-empty — regression for the default_language='en' filter that
-    # made the UI show zero books.
-    nbooks=$(sqlite3 "$BOOKS_DB" 'select count(*) from books;' 2>/dev/null || echo 0)
-    if [ "${nbooks:-0}" -gt 0 ]; then pass "library has $nbooks books"; else fail "library is empty"; fi
-
-    # Cover thumbnails serve as images — regression for the srcset/sub_filter
-    # bug that 404'd /cover/<id>/sm and left the grid blank.
-    book_id=$(sqlite3 "$BOOKS_DB" 'select id from books where has_cover=1 limit 1;' 2>/dev/null)
-    if [ -n "$book_id" ]; then
-        check_ctype "cover thumbnail is an image" image/jpeg "http://127.0.0.1:8083/cover/$book_id/sm" "${CW_HDR[@]}"
-    else
-        skip "cover thumbnail" "no book with a cover found"
-    fi
+nfail=$(grep -c . "$payload" 2>/dev/null || echo 0)
+if [ "$rc" -eq 0 ]; then
+    printf '\n%s== OVERALL: HEALTHY ==%s\n' "$GREEN" "$NC" >&2
 else
-    skip "library content checks" "sqlite3 or $BOOKS_DB unavailable"
+    printf '\n%s== OVERALL: UNHEALTHY — %d failing ==%s\n' "$RED" "$nfail" "$NC" >&2
 fi
 
-# No calibre-web user pinned to a single book language (the empty-library cause).
-if command -v sqlite3 >/dev/null 2>&1 && [ -r "$APP_DB" ]; then
-    badlang=$(sqlite3 "$APP_DB" "select count(*) from user where default_language not in ('all','');" 2>/dev/null || echo '?')
-    if [ "$badlang" = 0 ]; then pass "no users pinned to a single book language"
-    else fail "users with a language filter" "$badlang user(s) have default_language != all"; fi
-else
-    skip "user language-filter check" "$APP_DB unreadable"
-fi
-
-# Write access — calibre-web must be able to edit metadata/covers and accept
-# uploads. Needs passwordless sudo to drop to the calibre user.
-if sudo -n true 2>/dev/null; then
-    if sudo -n -u calibre sh -c "test -w '$BOOKS_DB' && test -w /media/data/Books" 2>/dev/null; then
-        pass "calibre can write the library (db + dir)"
-    else
-        fail "calibre cannot write the library" "check group membership + ACL mask (setfacl)"
-    fi
-else
-    skip "calibre write access" "needs passwordless sudo"
-fi
-
-# ----------------------------------------------------------------------------
-section "media upstreams (localhost)"
-check_up   "mympd (:8080)"       http://127.0.0.1:8080/
-check_up   "flood (:3000)"       http://127.0.0.1:3000/
-check_up   "radicale (:5232)"    http://127.0.0.1:5232/
-check_http "mcp discovery (:3001)" 200 http://127.0.0.1:3001/.well-known/oauth-authorization-server
-
-# ----------------------------------------------------------------------------
-section "MPD"
-# Greeting on the control port is "OK MPD <version>". Do the connect in a
-# subshell — `exec <>/dev/tcp` in the current shell with a `2>` would clobber
-# this script's stderr for every line after it.
-greeting=$(exec 3<>/dev/tcp/127.0.0.1/6600 2>/dev/null && IFS= read -r -t 5 g <&3 && printf '%s' "$g")
-case "$greeting" in
-    OK\ MPD*) pass "control port :6600 (${greeting%$'\r'})" ;;
-    "")       fail "control port :6600" "no response / connection refused" ;;
-    *)        fail "control port :6600" "unexpected greeting '${greeting}'" ;;
-esac
-# The httpd output serves on demand (the port is only bound while MPD has a
-# stream). Something is normally playing here, so an absent stream is a real
-# signal — idle MPD or a dead encoder both warrant a look — hence FAIL not SKIP.
-check_ctype "HTTP stream :8030 is audio" audio/ http://127.0.0.1:8030/
-
-# ----------------------------------------------------------------------------
-section "torrent backend"
-check_cmd "rtorrent rpc socket exists" test -S /run/rtorrent/rpc.sock
-
-# ----------------------------------------------------------------------------
-section "host health"
-for mp in / /media/data; do
-    use=$(df -P "$mp" 2>/dev/null | awk 'NR==2 {gsub("%","",$5); print $5}')
-    if [ -n "$use" ] && [ "$use" -lt 90 ]; then pass "disk $mp at ${use}%"
-    else fail "disk $mp at ${use:-?}%" ">= 90% used"; fi
-done
-
-# Under-voltage / throttling — the documented cause of Pi wedges. vcgencmd needs
-# the `video` group or root, so fall back to sudo and SKIP if neither works.
-throttle_raw=""
-if vcgencmd get_throttled >/dev/null 2>&1; then
-    throttle_raw=$(vcgencmd get_throttled 2>/dev/null)
-elif sudo -n vcgencmd get_throttled >/dev/null 2>&1; then
-    throttle_raw=$(sudo -n vcgencmd get_throttled 2>/dev/null)
-fi
-if [ -n "$throttle_raw" ]; then
-    thr=${throttle_raw#*=}
-    if [ "$thr" = "0x0" ]; then pass "no throttling ($thr)"
-    else fail "throttling/under-voltage" "$thr (see /var/log/blackbox)"; fi
-else
-    skip "throttling check" "vcgencmd needs the video group or sudo"
-fi
-
-# ----------------------------------------------------------------------------
-# Same public-surface checks as external.sh, but from the Pi — hairpins out
-# through the real domains, so DNS/TLS/nginx are covered end to end too.
-external_checks "$AUTH"
-
-finish
+cat "$payload"   # stdout = aggregated alert payload
+exit "$rc"

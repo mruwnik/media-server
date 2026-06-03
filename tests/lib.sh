@@ -18,6 +18,11 @@ fi
 PASSED=0; FAILED=0; SKIPPED=0
 FAILURES=""   # newline-joined failure lines — the stdout payload
 
+# Shared option: `-u user:pass` enables authenticated checks. Sourced scripts
+# see the caller's positional params, so every check picks this up uniformly.
+AUTH=""
+[ "${1:-}" = "-u" ] && AUTH="${2:-}"
+
 section() { printf '\n%s== %s ==%s\n' "$CYAN" "$1" "$NC" >&2; }
 pass()    { printf '  %sPASS%s %s\n' "$GREEN" "$NC" "$1" >&2; PASSED=$((PASSED + 1)); }
 skip()    { printf '  %sSKIP%s %s%s\n' "$YELLOW" "$NC" "$1" "${2:+ — $2}" >&2; SKIPPED=$((SKIPPED + 1)); }
@@ -78,13 +83,12 @@ check_ctype() {
     esac
 }
 
-# finish — print the human summary to stderr, the failure payload to stdout,
-# and return non-zero iff anything failed. End a checker with:  finish
+# finish — print a compact per-checker tally to stderr, the failure payload to
+# stdout (one line per failure, empty when healthy), and return non-zero iff
+# anything failed. Each checks/*.sh ends with `finish`; diagnostics.sh prints
+# the overall verdict after running them all.
 finish() {
-    printf '\n%s========================================%s\n' "$CYAN" "$NC" >&2
-    printf '  %sPASS %d%s   %sFAIL %d%s   %sSKIP %d%s\n' \
-        "$GREEN" "$PASSED" "$NC" "$RED" "$FAILED" "$NC" "$YELLOW" "$SKIPPED" "$NC" >&2
-    printf '%s========================================%s\n' "$CYAN" "$NC" >&2
+    printf '  %s(%d pass, %d fail, %d skip)%s\n' "$CYAN" "$PASSED" "$FAILED" "$SKIPPED" "$NC" >&2
     [ -z "$FAILURES" ] && return 0
     printf '%s\n' "$FAILURES"   # stdout = alert payload for notify.sh
     return 1

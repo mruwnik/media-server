@@ -1,50 +1,72 @@
 # ahiru test battery
 
-Bash smoke tests for the components running on the Pi, plus a split-out
-notifier. Modelled on `../../maip-server/provision/monitoring` — same output
-contract: the human report goes to **stderr**, while **stdout carries only the
-failure lines** (empty when healthy), so a checker pipes straight into the
-notifier:
+Bash health checks for the components on the Pi, plus a split-out notifier.
+Modelled on `../../maip-server/provision/monitoring`: small composable check
+scripts under `checks/`, a `diagnostics.sh` that runs them all, and a `notify.sh`
+that delivers alerts.
+
+**Output contract:** the human report goes to **stderr**; **stdout carries only
+the failure lines** (empty when healthy). So any checker (or subset) pipes
+straight into the notifier:
 
 ```sh
 diagnostics.sh | notify.sh "ahiru health"
 ```
 
-## Files
+## Layout
 
-| Script           | Where it runs        | What it does |
-|------------------|----------------------|--------------|
-| `lib.sh`         | sourced              | helpers (`check_http`, `check_up`, `check_content`, `check_ctype`, `check_cmd`), coloured `PASS`/`FAIL`/`SKIP`, and `finish` (prints the failure payload to stdout) |
-| `diagnostics.sh` | **on the Pi**        | the full checker: systemd units, no failed units, calibre library/covers/write (regression guards), mympd/flood/radicale/mcp upstreams, MPD control port + HTTP stream, rtorrent socket, disk, under-voltage — **then** the public-domain checks from `external.sh` (hairpin via the real domains) |
-| `external.sh`    | your laptop (or sourced) | public surface only: blog/404/MCP discovery, portal, `/books·/music·/torrents` auth gate (401), optional authed routes. Defines `external_checks` that `diagnostics.sh` reuses |
-| `notify.sh`      | the Pi (cron/manual) | reads a message on stdin and sends it to email (msmtp) + Discord; **no-op on empty stdin** |
+```
+tests/
+  lib.sh            helpers (check_http/check_up/check_content/check_ctype/check_cmd),
+                    coloured PASS/FAIL/SKIP, -u parsing, finish (failure payload → stdout)
+  checks/
+    systemd.sh      services active + no failed units + scheduled timers armed
+    calibre.sh      library populated, covers render, write access (regression guards)
+    media.sh        mympd, flood, radicale (PROPFIND), mcp (OAuth metadata)
+    mpd.sh          control port :6600 + HTTP stream :8030
+    torrent.sh      rtorrent rpc socket
+    backups.sh      filen-sync timer armed + last run success + recent
+    host.sh         disk usage + under-voltage/throttling
+    public.sh       blog/portal/auth-gate via the real domains (DNS+TLS)  [takes -u]
+  diagnostics.sh    runs every checks/*.sh, aggregates, prints OVERALL verdict
+  external.sh       laptop entrypoint → checks/public.sh
+  notify.sh         reads stdin, sends to email (msmtp) + Discord; no-op on empty
+```
+
+Each `checks/*.sh` is standalone and ends with `finish`, so it can be run alone
+or in any combination.
 
 ## Usage
 
 ```bash
 # Public surface, from your laptop:
-./tests/external.sh
-./tests/external.sh -u USER:PASS          # also exercise authenticated routes
+./tests/external.sh [-u USER:PASS]
 
 # Full checker, on the Pi:
-ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh'
-ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh -u USER:PASS'
+ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh [-u USER:PASS]'
 
 # Check + alert (silent unless something failed):
 ssh ahiru.pl 'cd ~/nixos && ./tests/diagnostics.sh | ./tests/notify.sh "ahiru health"'
+
+# A SUBSET (e.g. what an hourly monitor might run):
+ssh ahiru.pl 'cd ~/nixos && { ./tests/checks/systemd.sh; ./tests/checks/backups.sh; } | ./tests/notify.sh "ahiru hourly"'
 ```
+
+`-u USER:PASS` is the shared basic-auth credential (`/etc/shared-htpasswd`); it
+enables the authenticated route checks. Nothing is stored — pass it only when
+you want those checks.
 
 ## Notes
 
-- `notify.sh` takes the alert email from `$NOTIFY_EMAIL`/`$MAILTO`, else
-  `notify_email` in `/etc/monitoring-config` (the file the health-check already
-  uses); Discord from `$DISCORD_WEBHOOK_URL` or `/etc/ahiru-discord-webhook`.
-  Each channel self-guards and is skipped if unconfigured.
-- The calibre **write-access** check drops to the `calibre` user and needs
-  passwordless `sudo`; it `SKIP`s otherwise.
-- Covers and library-non-empty are regression guards for the two calibre-web
-  bugs fixed in `6aade67` (srcset/sub_filter; language filter).
-- `monitoring.nix`'s hourly health-check still has its own inline alerting and
-  calls the old `/root/test-services.sh`. It can be repointed at
-  `diagnostics.sh | notify.sh` — not done here to avoid changing the live alert
-  path without a heads-up.
+- `notify.sh` takes the email from `$NOTIFY_EMAIL`/`$MAILTO`, else `notify_email`
+  in `/etc/monitoring-config`; Discord from `$DISCORD_WEBHOOK_URL` or
+  `/etc/ahiru-discord-webhook`. Each channel self-guards and is skipped if
+  unconfigured.
+- `calibre.sh`'s write check drops to the `calibre` user (needs passwordless
+  `sudo`; `SKIP`s otherwise). Covers/library/language checks guard the bugs
+  fixed in `6aade67`.
+- `mpd.sh` expects `:8030` to be streaming — it `FAIL`s when nothing is playing.
+- **Designed for reuse by `monitoring.nix`:** its hourly health-check can be
+  repointed at a subset of `checks/*.sh` piped to `notify.sh`, replacing its
+  inline alerting + the old `/root/test-services.sh`. (Not wired yet.)
+```
