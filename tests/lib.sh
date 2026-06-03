@@ -15,7 +15,7 @@ else
     RED=""; GREEN=""; YELLOW=""; CYAN=""; NC=""
 fi
 
-PASSED=0; FAILED=0; SKIPPED=0
+PASSED=0; FAILED=0; WARNED=0; SKIPPED=0
 FAILURES=""   # newline-joined failure lines — the stdout payload
 
 # Shared option: `-u user:pass` enables authenticated checks. Sourced scripts
@@ -26,6 +26,12 @@ AUTH=""
 section() { printf '\n%s== %s ==%s\n' "$CYAN" "$1" "$NC" >&2; }
 pass()    { printf '  %sPASS%s %s\n' "$GREEN" "$NC" "$1" >&2; PASSED=$((PASSED + 1)); }
 skip()    { printf '  %sSKIP%s %s%s\n' "$YELLOW" "$NC" "$1" "${2:+ — $2}" >&2; SKIPPED=$((SKIPPED + 1)); }
+
+# warn "desc" ["detail"] — a non-fatal observation. Goes to the human report
+# (stderr) only; never enters the failure payload, so it does NOT trigger an
+# alert. Use for things worth seeing but not paging on (transient load, idle
+# stream, …).
+warn()    { printf '  %sWARN%s %s%s\n' "$YELLOW" "$NC" "$1" "${2:+ — $2}" >&2; WARNED=$((WARNED + 1)); }
 
 # fail "desc" ["detail"] — record one payload line (newlines collapsed so each
 # failure stays a single line) and print it to the human report.
@@ -88,7 +94,7 @@ check_ctype() {
 # anything failed. Each checks/*.sh ends with `finish`; diagnostics.sh prints
 # the overall verdict after running them all.
 finish() {
-    printf '  %s(%d pass, %d fail, %d skip)%s\n' "$CYAN" "$PASSED" "$FAILED" "$SKIPPED" "$NC" >&2
+    printf '  %s(%d pass, %d fail, %d warn, %d skip)%s\n' "$CYAN" "$PASSED" "$FAILED" "$WARNED" "$SKIPPED" "$NC" >&2
     [ -z "$FAILURES" ] && return 0
     printf '%s\n' "$FAILURES"   # stdout = alert payload for notify.sh
     return 1

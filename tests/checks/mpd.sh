@@ -15,8 +15,12 @@ case "$greeting" in
 esac
 
 # The httpd output serves on demand (port bound only while MPD has a stream).
-# Something is normally playing here, so an absent stream is a real signal —
-# idle MPD or a dead encoder both warrant a look — hence FAIL not SKIP.
-check_ctype "HTTP stream :8030 is audio" audio/ http://127.0.0.1:8030/
+# An absent stream usually just means nothing is playing — worth noting but not
+# an outage — so WARN, not FAIL (never pages).
+ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 6 http://127.0.0.1:8030/ 2>/dev/null || true)
+case "$ct" in
+    audio/*) pass "HTTP stream :8030 is audio ($ct)" ;;
+    *)       warn "HTTP stream :8030 not streaming" "is anything playing?" ;;
+esac
 
 finish
