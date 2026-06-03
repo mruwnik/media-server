@@ -133,6 +133,10 @@ in
           proxy_set_header X-Remote-User $remote_user;
           proxy_set_header X-Script-Name /books;
           proxy_set_header X-Scheme $scheme;
+          # Allow large ebook uploads (default is 1M -> 413). Scanned PDFs can
+          # be hundreds of MB. Also give calibre-web time to ingest/convert.
+          client_max_body_size 1024m;
+          proxy_read_timeout 600s;
         '';
       };
 
