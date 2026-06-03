@@ -23,9 +23,10 @@ tests/
     systemd.sh      services active + no failed units + scheduled timers armed
     calibre.sh      library populated, covers render, write access (regression guards)
     media.sh        mympd, flood, radicale (PROPFIND), mcp (OAuth metadata)
-    mpd.sh          control port :6600 + HTTP stream :8030
+    mpd.sh          control port :6600 + HTTP stream :8030 (WARN when idle)
     torrent.sh      rtorrent rpc socket
     backups.sh      filen-sync timer armed + last run success + recent
+    resources.sh    CPU temp + memory (fail past thresholds) + load (WARN)
     host.sh         disk usage + under-voltage/throttling
     public.sh       blog/portal/auth-gate via the real domains (DNS+TLS)  [takes -u]
   diagnostics.sh    runs every checks/*.sh, aggregates, prints OVERALL verdict
@@ -66,7 +67,10 @@ you want those checks.
   `sudo`; `SKIP`s otherwise). Covers/library/language checks guard the bugs
   fixed in `6aade67`.
 - `mpd.sh` expects `:8030` to be streaming — it `FAIL`s when nothing is playing.
-- **Designed for reuse by `monitoring.nix`:** its hourly health-check can be
-  repointed at a subset of `checks/*.sh` piped to `notify.sh`, replacing its
-  inline alerting + the old `/root/test-services.sh`. (Not wired yet.)
+- **Used by `monitoring.nix`:** the hourly health-check copies this `tests/`
+  tree into the nix store and runs the subset
+  `systemd calibre media mpd torrent backups resources host public`, piping the
+  failures to `notify.sh`. It replaced the old inline alerting +
+  `/root/test-services.sh`. Thresholds + `notify_email` come from
+  `/etc/monitoring-config`. No dedup — a persistent failure re-alerts hourly.
 ```
