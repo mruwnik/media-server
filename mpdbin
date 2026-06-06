@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Local wrapper: run mpdbin.py on the media server over SSH.
+#
+# Usage (from this folder):
+#   ./mpdbin              skip current track, then confirm whether to bin it
+#   ./mpdbin -y           bin without confirmation
+#   ./mpdbin --list       list binned tracks
+#   ./mpdbin --restore [QUERY]   undo a removal (most recent, or matching QUERY)
+#
+# Host override:  MPD_HOST=other.host ./mpdbin --list
+set -euo pipefail
+
+HOST="${MPD_HOST:-media.ahiru.pl}"
+
+# Re-quote each argument so it survives the remote shell intact (filenames and
+# --restore queries can contain spaces).
+remote="mpdbin"
+for arg in "$@"; do
+    remote+=" $(printf '%q' "$arg")"
+done
+
+# Allocate a remote TTY only when we have a local one, so the interactive
+# [y/N] prompt works without warnings when piped/non-interactive.
+tty_flag=()
+[ -t 0 ] && tty_flag=(-t)
+exec ssh "${tty_flag[@]+"${tty_flag[@]}"}" "$HOST" "$remote"

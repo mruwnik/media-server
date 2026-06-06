@@ -20,6 +20,7 @@
     ../../modules/services/mail.nix
     ../../modules/services/updates.nix
     ../../modules/services/monitoring.nix
+    ../../modules/services/mpd-rating.nix
   ];
 
   # Move /nix to the 4.5TB data partition — the 30GB root partition is too
