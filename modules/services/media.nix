@@ -2,6 +2,7 @@
 
 let
   primaryUser = config.ahiru.primaryUser.name;
+  bookLibrary = "/media/data/Books";
 in
 {
   # Open port for MPD HTTP stream (direct access from LAN)
@@ -19,7 +20,7 @@ in
       port = 8083;
     };
     options = {
-      calibreLibrary = "/media/data/Books";
+      calibreLibrary = bookLibrary;
       enableBookUploading = true;
       reverseProxyAuth = {
         enable = true;
@@ -33,18 +34,27 @@ in
   # library: edit metadata, regenerate covers, and accept uploads. The library
   # dirs are setgid + group=users, so new entries stay group-owned by users.
   # NB: /media/data/Books uses POSIX ACLs with a restrictive mask, so plain
-  # `chmod g+w` is NOT enough — the mask caps effective group perms at r-x. The
-  # tree was granted group write with (one-time, persists on the data partition):
-  #   setfacl -R -m g:users:rwx /media/data/Books
-  #   setfacl -R -d -m g:users:rwx /media/data/Books   # default for new files
+  # `chmod g+w` is NOT enough — the mask caps effective group perms at r-x.
+  # Group write is (re)granted declaratively by the activation script below.
   users.users.calibre = {
     isSystemUser = true;
     group = "calibre";
     extraGroups = [ "users" ];
-    home = "/media/data/Books";
+    home = bookLibrary;
     description = "Calibre-web service user";
   };
   users.groups.calibre = {};
+
+  # Because the library is calibre's home, the `users` activation step chmods
+  # it and resets the ACL mask to r-x, which re-caps the g:users:rwx grant and
+  # leaves calibre unable to write the library (edit metadata, covers, uploads).
+  # Re-apply the group-write ACL after that step on every rebuild — same pattern
+  # mcp.nix uses for /media/data/Unsorted. Only the top dir needs it (subdirs are
+  # setgid + already carry the ACL, and inherit the default for new entries).
+  system.activationScripts.calibreLibraryAccess = lib.stringAfter [ "users" ] ''
+    ${pkgs.acl}/bin/setfacl -m g:users:rwx ${bookLibrary} 2>/dev/null || true
+    ${pkgs.acl}/bin/setfacl -d -m g:users:rwx ${bookLibrary} 2>/dev/null || true
+  '';
 
   # ============================================================
   # MPD - Music Player Daemon
