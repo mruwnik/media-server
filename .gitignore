@@ -11,3 +11,6 @@ secrets/*.enc
 # Migration secrets
 migration/nginx/htpasswd
 migration/gitea/passwords.txt
+
+# macOS
+.DS_Store
