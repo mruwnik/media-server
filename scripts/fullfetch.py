@@ -220,15 +220,43 @@ def select(cands, artist, title):
     return None, review
 
 
-def download(video_id, dest_noext):
+def download_url(url, dest_noext):
     rc = subprocess.run(
         ["yt-dlp", "-x", "--audio-format", "opus", "--audio-quality", "0",
-         "--no-warnings", "--no-playlist", "-o", dest_noext + ".%(ext)s",
-         f"https://www.youtube.com/watch?v={video_id}"],
+         "--no-warnings", "--no-playlist", "-o", dest_noext + ".%(ext)s", url],
         capture_output=True, text=True,
     ).returncode
     out = dest_noext + ".opus"
     return out if rc == 0 and os.path.exists(out) else None
+
+
+def download(video_id, dest_noext):
+    return download_url(f"https://www.youtube.com/watch?v={video_id}", dest_noext)
+
+
+def fetch_url_one(uri, url, dry_run):
+    """Download a specific URL into uri's path (backing up any original)."""
+    abspath = os.path.join(MUSIC, uri)
+    if dry_run:
+        print(f"  WOULD fetch {url}\n      -> {uri}")
+        return True
+    got = download_url(url, os.path.join("/tmp", "fullfetch-" + str(abs(hash(uri)))))
+    if not got:
+        print(f"  download FAILED: {url}")
+        log_line(["dlfail", uri, url])
+        return False
+    if os.path.exists(abspath):
+        backup = os.path.join(BACKUP, uri)
+        os.makedirs(os.path.dirname(backup), exist_ok=True)
+        shutil.move(abspath, backup)
+    else:
+        os.makedirs(os.path.dirname(abspath), exist_ok=True)
+    shutil.move(got, abspath)
+    artist, title = parse_filename(uri)
+    copy_tags((artist, title, ""), abspath)
+    print(f"  fetched: {uri}")
+    log_line(["fetchurl", uri, url])
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -352,6 +380,30 @@ def cmd_revert(args):
     print(f"reverted: {rel}")
 
 
+def cmd_fetchurl(args):
+    """Download specific URLs into specific paths (file of 'uri<TAB>url' lines)."""
+    pairs = []
+    for ln in open(args.from_file):
+        ln = ln.rstrip("\n")
+        if "\t" in ln:
+            pairs.append(tuple(ln.split("\t", 1)))
+    print(f"{'(dry-run) ' if args.dry_run else ''}{len(pairs)} url(s) to fetch")
+    changed = set()
+    done = 0
+    for uri, url in pairs:
+        if fetch_url_one(uri, url, args.dry_run):
+            done += 1
+            changed.add(os.path.dirname(uri))
+    if changed and not args.dry_run:
+        with MPD() as mpd:
+            for directory in changed:
+                if directory:
+                    mpd.cmd("update", directory, ok_fail=True)
+                else:
+                    mpd.cmd("update", ok_fail=True)
+    print(f"done: {done}/{len(pairs)}")
+
+
 def cmd_list(args):
     if not os.path.exists(LOG):
         print("(nothing fetched yet)")
@@ -379,11 +431,15 @@ def main(argv=None):
                    help=f"upgrade even if already longer than {SKIP_OVER}s")
     f.add_argument("--limit", type=int, default=0)
     f.add_argument("uris", nargs="*")
+    fu = sub.add_parser("fetchurl", help="download specific URLs into specific paths")
+    fu.add_argument("--from-file", required=True, help="lines of: uri<TAB>url")
+    fu.add_argument("--dry-run", action="store_true")
     r = sub.add_parser("revert", help="restore a backed-up original")
     r.add_argument("query", nargs="?", default=None)
     sub.add_parser("list", help="list upgraded tracks")
     args = p.parse_args(argv)
-    {"fetch": cmd_fetch, "revert": cmd_revert, "list": cmd_list}[args.cmd](args)
+    {"fetch": cmd_fetch, "fetchurl": cmd_fetchurl,
+     "revert": cmd_revert, "list": cmd_list}[args.cmd](args)
 
 
 if __name__ == "__main__":
