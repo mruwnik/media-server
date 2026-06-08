@@ -36,6 +36,8 @@ LEDGER = os.path.join(BIN_ROOT, ".removed.tsv")
 
 # A rating of 1 star is the "bin me" signal.
 REAP_STARS = 1
+# Ratings that mean "noted, move on" — rate then skip to the next track.
+SKIP_STARS = (2, 3)
 POPM_EMAIL = "rating@ahiru"
 # Star -> ID3 POPM byte (Banshee/Quod Libet buckets).
 POPM_BYTES = {1: 1, 2: 64, 3: 128, 4: 196, 5: 255}
@@ -267,8 +269,9 @@ def reap_one(mpd, uri):
 
 def cmd_rate(stars, uri):
     with MPD() as mpd:
+        current = parse_kv(mpd.command("currentsong")).get("file", "")
         if not uri:
-            uri = parse_kv(mpd.command("currentsong")).get("file", "")
+            uri = current
         if not uri:
             sys.exit("nothing is playing and no uri given")
         if stars > 0:
@@ -282,6 +285,9 @@ def cmd_rate(stars, uri):
         if stars == REAP_STARS:
             reap_one(mpd, uri)
             print(f"reaped -> {os.path.join(BIN_ROOT, uri)}")
+        elif stars in SKIP_STARS and uri == current:
+            mpd.try_command("next")
+            print("skipped to next")
 
 
 def find_rated(mpd):

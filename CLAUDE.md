@@ -36,7 +36,8 @@ Durable, portable song ratings. Two layers kept in sync:
 
 Commands (run as `dan`; file writes need the owner):
 - `mpdrate N [uri]` — rate the current (or given) track 0–5 stars. **N=1 bins +
-  skips it** (1 star = "delete").
+  skips** (1 star = "delete"); **N=2/3 rate + skip** to the next (noted, move on);
+  N=4/5 just rate.
 - `mpdbin` — alias for `mpdrate 1` on the current track; `mpdbin --list` /
   `mpdbin --restore [query]`.
 - `mpd-rating reap` — hourly `mpd-reaper.timer`: syncs stickers→tags, then bins
