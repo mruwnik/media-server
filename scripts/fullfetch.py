@@ -109,14 +109,36 @@ def rated_uris(mpd, base, min_stars):
 # --------------------------------------------------------------------------- #
 # tags
 # --------------------------------------------------------------------------- #
+def safe_open(abspath, easy=False):
+    """mutagen.File that returns None instead of raising on broken files."""
+    try:
+        return mutagen.File(abspath, easy=easy)
+    except Exception:  # noqa: BLE001 - corrupt/empty files are expected here
+        return None
+
+
 def read_meta(abspath):
-    audio = mutagen.File(abspath, easy=True)
+    audio = safe_open(abspath, easy=True)
     if audio is None:
         return "", "", ""
     artist = (audio.get("artist") or [""])[0]
     title = (audio.get("title") or [""])[0]
     album = (audio.get("album") or [""])[0]
     return artist, title, album
+
+
+def parse_filename(uri):
+    """Fallback artist/title from the filename when a file has no tags (e.g.
+    0-byte/broken files). Handles 'Artist - Title' and the flat anime
+    'Show - NN - OP/ED - Title' convention (title only, no artist)."""
+    base = os.path.splitext(os.path.basename(uri))[0]
+    parts = [p.strip() for p in base.split(" - ")]
+    if (len(parts) >= 4 and re.match(r"^\d+$", parts[1])
+            and re.match(r"^(OP|ED)", parts[2], re.I)):
+        return "", parts[-1]
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    return "", base
 
 
 def copy_tags(meta, dest):
@@ -233,14 +255,16 @@ def upgrade_one(uri, dry_run, force=False):
     if not os.path.exists(abspath):
         print(f"  skip (missing): {uri}")
         return False
-    audio = mutagen.File(abspath)
+    audio = safe_open(abspath)
     cur_len = audio.info.length if (audio and audio.info) else 0
     if not force and cur_len > SKIP_OVER:
         print(f"  skip (already full, {cur_len:.0f}s): {uri}")
         return False
     artist, title, album = read_meta(abspath)
     if not (artist or title):
-        print(f"  skip (no tags): {uri}")
+        artist, title = parse_filename(uri)  # fallback for tagless/broken files
+    if not title:
+        print(f"  skip (no tags/name): {uri}")
         return False
     query = f"{artist} {title}".strip()
     chosen, review = select(search(query), artist, title)
@@ -276,7 +300,10 @@ def upgrade_one(uri, dry_run, force=False):
 
 
 def cmd_fetch(args):
-    if args.uris:
+    if args.from_file:
+        uris = [ln.rstrip("\n") for ln in open(args.from_file) if ln.strip()]
+        scope = args.from_file
+    elif args.uris:
         uris = args.uris
         scope = "given uris"
     else:
@@ -345,6 +372,8 @@ def main(argv=None):
     f.add_argument("--all-rated", action="store_true",
                    help="all rated tracks in the library")
     f.add_argument("--min-stars", type=int, default=2)
+    f.add_argument("--from-file", default=None,
+                   help="read uris to upgrade from a file (one per line)")
     f.add_argument("--dry-run", action="store_true")
     f.add_argument("--force", action="store_true",
                    help=f"upgrade even if already longer than {SKIP_OVER}s")
