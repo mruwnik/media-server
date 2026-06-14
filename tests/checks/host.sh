@@ -21,8 +21,24 @@ elif sudo -n vcgencmd get_throttled >/dev/null 2>&1; then
 fi
 if [ -n "$throttle_raw" ]; then
     thr=${throttle_raw#*=}
-    if [ "$thr" = "0x0" ]; then pass "no throttling ($thr)"
-    else fail "throttling/under-voltage" "$thr (see /var/log/blackbox)"; fi
+    # get_throttled is a bitfield; only some bits mean real trouble:
+    #   0x1 under-voltage now      0x10000 under-voltage occurred
+    #   0x4 currently throttled    0x40000 throttling occurred (hard, ~85C)
+    # The soft-temperature-limit bits (0x8 now / 0x80000 occurred) are BENIGN:
+    # the Pi4 soft limit is 60C and this box idles ~63C, so 0x80000 latches on
+    # essentially every boot — alarming on it is pure noise. Arm-freq-cap bits
+    # (0x2 / 0x20000) are a derivative of the above, so we don't alarm on them
+    # standalone either. Mask = under-voltage + hard-throttle, now + sticky.
+    danger=$(( thr & 0x50005 ))
+    if [ "$danger" -ne 0 ]; then
+        kind="throttling"
+        [ $(( thr & 0x10001 )) -ne 0 ] && kind="under-voltage"
+        fail "$kind" "$thr (see /var/log/blackbox)"
+    elif [ "$thr" = "0x0" ]; then
+        pass "no throttling ($thr)"
+    else
+        pass "throttle word benign ($thr: soft-temp/idle bits only)"
+    fi
 else
     skip "throttling check" "vcgencmd needs the video group or sudo"
 fi
