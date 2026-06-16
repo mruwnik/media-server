@@ -11,6 +11,7 @@
     ../../modules/services/websites.nix
     ../../modules/services/storage.nix
     ../../modules/services/torrent.nix
+    ../../modules/services/rtorrent-curl8-pin.nix  # TEMP pin — remove when libtorrent#722/#756 fixed
     ../../modules/services/media.nix
     ../../modules/services/calendar.nix
     ../../modules/services/git.nix
