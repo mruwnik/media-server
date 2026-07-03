@@ -57,23 +57,25 @@ in
     ${pkgs.acl}/bin/setfacl -d -m g:users:rwx ${bookLibrary} 2>/dev/null || true
   '';
 
-  # The activation script above runs during early boot — *before* the USB HDD
-  # (/media/data = sda2) is mounted — so on a fresh boot its setfacl hits the
-  # bare mountpoint, fails (|| true), and the real on-disk ACL keeps its r-x
-  # mask, leaving calibre unable to write until the next `switch`. Re-apply the
-  # ACL from a unit ordered after the mount so it survives reboots too. (The
-  # activation script still covers `switch`: this oneshot is RemainAfterExit and
-  # unchanged across a switch, so it is not re-run after the `users` step resets
-  # the mask — but during a switch the HDD is already mounted, so the script
-  # works there.)
+  # The activation script alone is not enough: on a `switch` that restarts
+  # calibre-web, the mask gets re-stomped to r-x *after* the activation script
+  # ran, and on a fresh boot the script fires before the USB HDD (/media/data =
+  # sda2) is mounted, so its setfacl hits the bare mountpoint and no-ops. Re-grant
+  # the ACL from a unit tied to calibre-web's own lifecycle instead: ordered
+  # `before` it, pulled in by it (wantedBy), non-persistent (RemainAfterExit =
+  # false) so it re-runs before *every* calibre-web (re)start — boot and
+  # switch-restart alike — and RequiresMountsFor so on boot it waits for the HDD
+  # and setfacl hits the real on-disk dir. This is the authoritative grant; the
+  # activation script above only covers a `switch` that leaves calibre-web
+  # running (mask stomped mid-run, no restart to trigger this unit).
   systemd.services.calibre-library-acl = {
-    description = "Re-grant calibre group-write on the book library (post-mount)";
-    wantedBy = [ "multi-user.target" ];
+    description = "Re-grant calibre group-write on the book library (before calibre-web)";
+    wantedBy = [ "calibre-web.service" ];
     before = [ "calibre-web.service" ];
     unitConfig.RequiresMountsFor = bookLibrary;
     serviceConfig = {
       Type = "oneshot";
-      RemainAfterExit = true;
+      RemainAfterExit = false;
     };
     script = ''
       ${pkgs.acl}/bin/setfacl -m g:users:rwx ${bookLibrary}
