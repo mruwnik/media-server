@@ -19,7 +19,7 @@ cfg() {
     fi
     printf '%s' "${val:-$def}"
 }
-TEMP_THRESHOLD="${TEMP_THRESHOLD:-$(cfg temp_threshold 70)}"
+TEMP_THRESHOLD="${TEMP_THRESHOLD:-$(cfg temp_threshold 73)}"
 MEMORY_THRESHOLD="${MEMORY_THRESHOLD:-$(cfg memory_threshold 90)}"
 
 section "resources"

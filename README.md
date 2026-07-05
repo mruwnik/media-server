@@ -225,7 +225,7 @@ notify_email: "your-email@example.com"
 # secrets/monitoring.yaml - Health alert config
 notify_email: "your-email@example.com"
 disk_threshold: 90      # Alert when disk > 90% full
-temp_threshold: 70      # Alert when CPU > 70°C
+temp_threshold: 73      # Alert when CPU > 72°C
 memory_threshold: 90    # Alert when RAM > 90% used
 ```
 

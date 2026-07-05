@@ -20,7 +20,7 @@ in
   # tests/notify.sh. Configure in /etc/monitoring-config:
   #   notify_email: "your@email.com"
   #   disk_threshold: 90        # (host.sh)      Alert when disk > 90% full
-  #   temp_threshold: 70        # (resources.sh) Alert when CPU > 70°C
+  #   temp_threshold: 73        # (resources.sh) Alert when CPU > 72°C
   #   memory_threshold: 90      # (resources.sh) Alert when RAM > 90% used
   #
   # Coverage lives in tests/ — services, calibre, media, mpd, torrent, backups,
