@@ -81,6 +81,7 @@
     description = "Flood torrent web UI";
     after = [ "rtorrent.service" ];
     wantedBy = [ "multi-user.target" ];
+    unitConfig.RequiresMountsFor = "/media/data";
 
     serviceConfig = {
       Type = "simple";
@@ -89,6 +90,33 @@
       ExecStart = "${pkgs.flood}/bin/flood --host 127.0.0.1 --port 3000 --baseuri /torrents --rundir /var/lib/flood --auth none --rtsocket /run/rtorrent/rpc.sock";
       Restart = "on-failure";
       StateDirectory = "flood";
+
+      # Sandbox. No MemoryDenyWriteExecute — Node/V8 JIT needs W+X pages.
+      # The rtorrent RPC socket in /run is reachable read-only (connect(2)
+      # doesn't write the fs); deliberately NOT in ReadWritePaths so an
+      # rtorrent restart (fresh /run/rtorrent) isn't hidden by a stale
+      # bind mount. Unsorted is writable for "delete with data".
+      CapabilityBoundingSet = "";
+      LockPersonality = true;
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateTmp = true;
+      ProtectClock = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectHostname = true;
+      ProtectKernelLogs = true;
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectProc = "invisible";
+      ProtectSystem = "strict";
+      ReadWritePaths = [ "/media/data/Unsorted" ];
+      RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" "AF_NETLINK" ];
+      RestrictNamespaces = true;
+      RestrictRealtime = true;
+      RestrictSUIDSGID = true;
+      SystemCallArchitectures = "native";
+      SystemCallFilter = [ "@system-service" "~@privileged" ];
     };
   };
 

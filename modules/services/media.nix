@@ -29,6 +29,37 @@ in
     };
   };
 
+  # Sandbox the (publicly proxied) calibre-web service. The nixpkgs module sets
+  # none of this. StateDirectory=calibre-web keeps app.db writable under
+  # ProtectSystem=strict; the library needs an explicit grant. No
+  # MemoryDenyWriteExecute — Python/cffi needs W+X pages.
+  systemd.services.calibre-web = {
+    unitConfig.RequiresMountsFor = bookLibrary;
+    serviceConfig = {
+      CapabilityBoundingSet = "";
+      LockPersonality = true;
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateTmp = true;
+      ProtectClock = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectHostname = true;
+      ProtectKernelLogs = true;
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectProc = "invisible";
+      ProtectSystem = "strict";
+      ReadWritePaths = [ bookLibrary ];
+      RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" "AF_NETLINK" ];
+      RestrictNamespaces = true;
+      RestrictRealtime = true;
+      RestrictSUIDSGID = true;
+      SystemCallArchitectures = "native";
+      SystemCallFilter = [ "@system-service" "~@privileged" ];
+    };
+  };
+
   # Calibre user - system user to access Books directory.
   # Member of `users` (the library's owning group) so calibre-web can WRITE the
   # library: edit metadata, regenerate covers, and accept uploads. The library

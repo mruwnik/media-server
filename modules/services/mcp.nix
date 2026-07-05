@@ -1,5 +1,33 @@
 { config, lib, pkgs, ... }:
 
+let
+  # Systemd sandbox for the mcp units. No MemoryDenyWriteExecute: the venv
+  # pulls in cffi-based wheels (bcrypt, cryptography) whose libffi closures
+  # need writable+executable pages. AF_NETLINK stays allowed — getifaddrs()
+  # uses it and returns EPERM (not an ignorable error) when filtered.
+  hardening = {
+    CapabilityBoundingSet = "";
+    LockPersonality = true;
+    NoNewPrivileges = true;
+    PrivateDevices = true;
+    PrivateTmp = true;
+    ProtectClock = true;
+    ProtectControlGroups = true;
+    ProtectHome = true;
+    ProtectHostname = true;
+    ProtectKernelLogs = true;
+    ProtectKernelModules = true;
+    ProtectKernelTunables = true;
+    ProtectProc = "invisible";
+    ProtectSystem = "strict";
+    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" "AF_NETLINK" ];
+    RestrictNamespaces = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    SystemCallArchitectures = "native";
+    SystemCallFilter = [ "@system-service" "~@privileged" ];
+  };
+in
 {
   # ============================================================
   # Local MCP Server - Music/MPD control and anime management
@@ -51,6 +79,8 @@
       Group = "mcp";
       WorkingDirectory = "/var/lib/mcp";
       RemainAfterExit = true;
+    } // hardening // {
+      ReadWritePaths = [ "/var/lib/mcp" ];
     };
 
     script = ''
@@ -129,12 +159,15 @@
       ANIME_BASE_PATH = "/media/data/Unsorted";
     };
 
+    unitConfig.RequiresMountsFor = "/media/data";
     serviceConfig = {
       Type = "oneshot";
       User = "mcp";
       Group = "mcp";
       WorkingDirectory = "/var/lib/mcp/repo";
       ExecStart = "${pkgs.uv}/bin/uv run anime-check";
+    } // hardening // {
+      ReadWritePaths = [ "/var/lib/mcp" "/media/data/Unsorted" ];
     };
   };
 
@@ -144,6 +177,7 @@
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" "mcp-setup.service" "mpd.service" ];
     requires = [ "mcp-setup.service" ];
+    unitConfig.RequiresMountsFor = "/media/data";
 
     path = [ pkgs.python312 pkgs.uv pkgs.git ];
 
@@ -165,6 +199,10 @@
       ExecStart = "${pkgs.uv}/bin/uv run local-mcp";
       Restart = "always";
       RestartSec = "10";
+    } // hardening // {
+      # /var/lib/mcp: repo checkout + uv venv/cache (HOME). Unsorted: anime
+      # downloads + rtorrent .watch drops. htpasswd + MPD are read/socket only.
+      ReadWritePaths = [ "/var/lib/mcp" "/media/data/Unsorted" ];
     };
   };
 }
