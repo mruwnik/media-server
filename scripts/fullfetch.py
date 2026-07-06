@@ -240,6 +240,9 @@ def fetch_url_one(uri, url, dry_run):
     if dry_run:
         print(f"  WOULD fetch {url}\n      -> {uri}")
         return True
+    artist, title, album = read_meta(abspath) if os.path.exists(abspath) else ("", "", "")
+    if not (artist or title):
+        artist, title = parse_filename(uri)
     got = download_url(url, os.path.join("/tmp", "fullfetch-" + str(abs(hash(uri)))))
     if not got:
         print(f"  download FAILED: {url}")
@@ -252,8 +255,7 @@ def fetch_url_one(uri, url, dry_run):
     else:
         os.makedirs(os.path.dirname(abspath), exist_ok=True)
     shutil.move(got, abspath)
-    artist, title = parse_filename(uri)
-    copy_tags((artist, title, ""), abspath)
+    copy_tags((artist, title, album), abspath)
     print(f"  fetched: {uri}")
     log_line(["fetchurl", uri, url])
     return True
