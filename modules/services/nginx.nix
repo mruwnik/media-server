@@ -100,10 +100,10 @@ in
     };
 
     # differ.ahiru.pl - code review UI + MCP (proxies differ on :8576)
-    # differ's own OAuth accepts everything by design, so nginx is the gate:
-    # LAN sources (incl. hairpinned ones) get in by IP, anyone else needs the
-    # shared htpasswd. MCP clients only work from the LAN — they'd send their
-    # own Authorization header, which clobbers basic auth.
+    # differ's own OAuth accepts everything by design, so the shared htpasswd
+    # is the real gate — same as /books & friends. NB: MCP clients that send
+    # their own Authorization header (OAuth Bearer) clobber basic auth, so
+    # MCP over this vhost needs creds baked into the URL, not a header.
     virtualHosts."differ.ahiru.pl" = {
       enableACME = true;
       forceSSL = true;
@@ -113,16 +113,6 @@ in
         proxyWebsockets = true;
         basicAuthFile = "/etc/shared-htpasswd";
         extraConfig = ''
-          satisfy any;
-          allow 127.0.0.1;
-          allow 192.168.0.0/24;
-          # LAN clients resolve differ.ahiru.pl to the WAN address and hairpin
-          # through the router, which masquerades them AS the WAN address —
-          # only inside traffic can ever have this source, so it's LAN too.
-          # If the WAN IP changes this line goes stale (harmless: those
-          # clients just fall back to the htpasswd prompt) — update it.
-          allow 194.181.243.144;
-          deny all;
           # SSE (/events) + streaming MCP responses: no buffering, and let
           # review sessions idle without nginx cutting the stream.
           proxy_buffering off;
