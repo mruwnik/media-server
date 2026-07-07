@@ -61,10 +61,9 @@ in
   # Differ - local code review server with MCP integration
   # https://github.com/mruwnik/differ
   # ============================================================
-  # Standalone on :8576 (deliberately not behind nginx). LAN-only: differ's
-  # OAuth accepts everything without verifying, so never port-forward this.
-
-  networking.firewall.allowedTCPPorts = [ 8576 ];
+  # Served via nginx as differ.ahiru.pl (see nginx.nix) — :8576 stays
+  # firewalled; nginx is the gate because differ's own OAuth accepts
+  # everything without verifying.
 
   users.users.differ = {
     isSystemUser = true;
@@ -174,9 +173,7 @@ in
       HOME = "/var/lib/differ";
       XDG_DATA_HOME = "/var/lib/differ/data";  # sqlite db: data/differ/review.db
       PORT = "8576";
-      # Resolves to the Pi's LAN IP via blocky's split-horizon record
-      # (dns.nix); the public A record doesn't forward :8576 on purpose.
-      DIFFER_URL = "http://ahiru.pl:8576";
+      DIFFER_URL = "https://differ.ahiru.pl";
     };
 
     serviceConfig = {

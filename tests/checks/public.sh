@@ -18,6 +18,14 @@ check_http    "MCP discovery 200"        200 "$BLOG/.well-known/oauth-authorizat
 section "media portal — media.ahiru.pl"
 check_http    "portal index 200"         200 "$MEDIA/"
 
+section "differ — differ.ahiru.pl (TLS + LAN allowlist)"
+# NB: LAN sources (incl. this Pi via hairpin) satisfy the vhost's IP
+# allowlist, so these see 200 without creds; the WAN-side htpasswd gate
+# can't be probed from inside the network.
+DIFFER=https://differ.ahiru.pl
+check_content "differ UI served"          "$DIFFER/" "Differ - Local Code Review"
+check_content "differ MCP OAuth metadata" "$DIFFER/.well-known/oauth-authorization-server" authorization_endpoint
+
 section "auth gate enforced (expect 401 without creds)"
 check_http    "/books/ gated"            401 "$MEDIA/books/"
 check_http    "/torrents/ gated"         401 "$MEDIA/torrents/"

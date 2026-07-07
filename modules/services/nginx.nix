@@ -99,6 +99,32 @@ in
       };
     };
 
+    # differ.ahiru.pl - code review UI + MCP (proxies differ on :8576)
+    # differ's own OAuth accepts everything by design, so nginx is the gate:
+    # LAN sources (incl. hairpinned ones) get in by IP, anyone else needs the
+    # shared htpasswd. MCP clients only work from the LAN — they'd send their
+    # own Authorization header, which clobbers basic auth.
+    virtualHosts."differ.ahiru.pl" = {
+      enableACME = true;
+      forceSSL = true;
+
+      locations."/" = {
+        proxyPass = "http://127.0.0.1:8576";
+        proxyWebsockets = true;
+        basicAuthFile = "/etc/shared-htpasswd";
+        extraConfig = ''
+          satisfy any;
+          allow 127.0.0.1;
+          allow 192.168.0.0/24;
+          deny all;
+          # SSE (/events) + streaming MCP responses: no buffering, and let
+          # review sessions idle without nginx cutting the stream.
+          proxy_buffering off;
+          proxy_read_timeout 4h;
+        '';
+      };
+    };
+
     # media.ahiru.pl - services portal
     virtualHosts."media.ahiru.pl" = {
       enableACME = true;
