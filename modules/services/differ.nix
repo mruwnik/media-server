@@ -174,7 +174,10 @@ in
       HOME = "/var/lib/differ";
       XDG_DATA_HOME = "/var/lib/differ/data";  # sqlite db: data/differ/review.db
       PORT = "8576";
-      DIFFER_URL = "http://ahiru.pl:8576";
+      # LAN IP (router-reserved), not ahiru.pl: the public name resolves to
+      # the WAN address and :8576 is deliberately not forwarded, so URLs
+      # differ hands out (OAuth redirects, MCP) must use the LAN address.
+      DIFFER_URL = "http://192.168.0.198:8576";
     };
 
     serviceConfig = {
