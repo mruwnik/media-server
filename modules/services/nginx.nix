@@ -116,6 +116,12 @@ in
           satisfy any;
           allow 127.0.0.1;
           allow 192.168.0.0/24;
+          # LAN clients resolve differ.ahiru.pl to the WAN address and hairpin
+          # through the router, which masquerades them AS the WAN address —
+          # only inside traffic can ever have this source, so it's LAN too.
+          # If the WAN IP changes this line goes stale (harmless: those
+          # clients just fall back to the htpasswd prompt) — update it.
+          allow 194.181.243.144;
           deny all;
           # SSE (/events) + streaming MCP responses: no buffering, and let
           # review sessions idle without nginx cutting the stream.
