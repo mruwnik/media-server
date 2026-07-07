@@ -100,10 +100,8 @@ in
     };
 
     # differ.ahiru.pl - code review UI + MCP (proxies differ on :8576)
-    # differ's own OAuth accepts everything by design, so the shared htpasswd
-    # is the real gate — same as /books & friends. NB: MCP clients that send
-    # their own Authorization header (OAuth Bearer) clobber basic auth, so
-    # MCP over this vhost needs creds baked into the URL, not a header.
+    # No nginx gate on purpose: differ manages its own auth (like mcp above),
+    # and basic auth would clobber MCP clients' Authorization: Bearer headers.
     virtualHosts."differ.ahiru.pl" = {
       enableACME = true;
       forceSSL = true;
@@ -111,7 +109,6 @@ in
       locations."/" = {
         proxyPass = "http://127.0.0.1:8576";
         proxyWebsockets = true;
-        basicAuthFile = "/etc/shared-htpasswd";
         extraConfig = ''
           # SSE (/events) + streaming MCP responses: no buffering, and let
           # review sessions idle without nginx cutting the stream.

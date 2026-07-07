@@ -18,10 +18,12 @@ check_http    "MCP discovery 200"        200 "$BLOG/.well-known/oauth-authorizat
 section "media portal — media.ahiru.pl"
 check_http    "portal index 200"         200 "$MEDIA/"
 
+section "differ — differ.ahiru.pl (TLS, differ handles its own auth)"
 DIFFER=https://differ.ahiru.pl
+check_content "differ UI served"          "$DIFFER/" "Differ - Local Code Review"
+check_content "differ MCP OAuth metadata" "$DIFFER/.well-known/oauth-authorization-server" authorization_endpoint
 
 section "auth gate enforced (expect 401 without creds)"
-check_http    "differ gated"             401 "$DIFFER/"
 check_http    "/books/ gated"            401 "$MEDIA/books/"
 check_http    "/torrents/ gated"         401 "$MEDIA/torrents/"
 check_http    "/music/ gated"            401 "$MEDIA/music/"
@@ -32,7 +34,6 @@ if [ -n "$AUTH" ]; then
     check_content "/books/ shows calibre UI"     "$MEDIA/books/" calibre -u "$AUTH"
     check_http    "/music/ 200 with auth"    200 "$MEDIA/music/" -u "$AUTH"
     check_http    "/torrents/ 200 with auth" 200 "$MEDIA/torrents/" -u "$AUTH"
-    check_content "differ UI with auth"          "$DIFFER/" "Differ - Local Code Review" -u "$AUTH"
 fi
 
 finish
