@@ -6,6 +6,7 @@ result-*
 *.age
 secrets/*.yaml
 secrets/*.enc
+secrets/*.env
 !secrets/.gitkeep
 
 # Migration secrets

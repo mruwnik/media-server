@@ -181,6 +181,11 @@ in
       User = "differ";
       Group = "differ";
       WorkingDirectory = "/var/lib/differ/repo";
+      # DIFFER_AUTH_USERNAME/PASSWORD — gates the MCP OAuth flow (differ is
+      # internet-reachable via the nginx vhost). Deliberately NOT optional:
+      # if deploy-secrets.sh hasn't provisioned it, fail closed rather than
+      # silently run with auto-approve token issuance.
+      EnvironmentFile = "/etc/differ-secrets";
       ExecStart = "${pkgs.nodejs}/bin/node target/server.js";
       Restart = "always";
       RestartSec = "10";

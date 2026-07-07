@@ -46,6 +46,14 @@ if [ -f "$SECRETS_DIR/monitoring.yaml" ]; then
   REMOTE_COMMANDS+="sudo mv /tmp/monitoring.yaml /etc/monitoring-config && sudo chmod 644 /etc/monitoring-config; "
 fi
 
+# Differ MCP OAuth login (systemd EnvironmentFile format:
+# DIFFER_AUTH_USERNAME=... / DIFFER_AUTH_PASSWORD=...)
+if [ -f "$SECRETS_DIR/differ.env" ]; then
+  echo "  → differ.env → /etc/differ-secrets"
+  scp -q "$SECRETS_DIR/differ.env" "$HOST:/tmp/differ.env"
+  REMOTE_COMMANDS+="sudo mv /tmp/differ.env /etc/differ-secrets && sudo chown root:root /etc/differ-secrets && sudo chmod 600 /etc/differ-secrets; "
+fi
+
 # HTTP Basic Auth users - generate htpasswd locally and copy
 if [ -f "$SECRETS_DIR/htpasswd.yaml" ]; then
   echo "  → htpasswd.yaml → /etc/htpasswd-secrets + /etc/shared-htpasswd"
