@@ -65,7 +65,7 @@ in
       HC="${healthChecks}"
       # mpd's :8030 stream is a warning (never alerts); the public checks hairpin
       # through the real domains. Drop a check name here to stop monitoring it.
-      CHECKS="systemd calibre media mpd torrent backups resources host public"
+      CHECKS="systemd calibre media differ mpd torrent backups resources host public"
 
       fails="$(mktemp)"
       trap 'rm -f "$fails"' EXIT

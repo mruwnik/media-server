@@ -5,10 +5,10 @@ cd "$(dirname "$0")/.."
 . ./lib.sh
 
 # Long-running services that must be active right now.
-SERVICES="nginx mpd mympd rtorrent flood calibre-web radicale mcp"
+SERVICES="nginx mpd mympd rtorrent flood calibre-web radicale mcp differ"
 # Periodic oneshots driven by timers — checked via their .timer (the services
 # themselves are inactive between runs, so is-active on them would be wrong).
-TIMERS="filen-sync blackbox-recorder health-check nixos-update-check anime-check mcp-update ahiru-blog-update mpd-rescan"
+TIMERS="filen-sync blackbox-recorder health-check nixos-update-check anime-check mcp-update differ-update ahiru-blog-update mpd-rescan"
 
 section "services active"
 for unit in $SERVICES; do

@@ -20,7 +20,7 @@ cd "$(dirname "$0")"
 . ./lib.sh   # for colours in the overall verdict line
 
 # Order: cheap/local first, public (network) last.
-CHECKS="systemd calibre media mpd torrent backups resources host public"
+CHECKS="systemd calibre media differ mpd torrent backups resources host public"
 
 payload=$(mktemp "${TMPDIR:-/tmp}/ahiru-diag.XXXXXX")
 trap 'rm -f "$payload"' EXIT
