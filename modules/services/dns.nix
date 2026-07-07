@@ -36,6 +36,13 @@
         http = 4000;  # API/metrics
       };
 
+      # Split-horizon: on the LAN, ahiru.pl (and subdomains) is the Pi itself,
+      # not the WAN IP — the router doesn't hairpin non-forwarded ports, so
+      # LAN-only services (differ :8576) are unreachable via the public A
+      # record. Other record types for the domain are filtered, not forwarded
+      # (blocky's default), so no public AAAA can leak a WAN path back in.
+      customDNS.mapping."ahiru.pl" = "192.168.0.198";
+
       # Ad-blocking lists
       blocking = {
         denylists = {
