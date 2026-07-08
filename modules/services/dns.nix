@@ -63,6 +63,16 @@
         refreshPeriod = "24h";
       };
 
+      # Local override: LAN clients must reach media.ahiru.pl directly —
+      # the router masquerades hairpinned traffic as the WAN IP, which
+      # defeats nginx's `allow 192.168.0.0/24` (satisfy any) on /files/.
+      customDNS = {
+        customTTL = "1h";
+        mapping = {
+          "media.ahiru.pl" = "192.168.0.198";
+        };
+      };
+
       # Caching
       caching = {
         minTime = "5m";
