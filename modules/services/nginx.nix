@@ -152,6 +152,33 @@ in
         index = "index.html";
       };
 
+      # Direct video file access for the anime watch flow (spec 2026-07-08).
+      # LAN needs no auth; outside requires the shared htpasswd (same posture
+      # as Flood). Only video/subtitle files are fetchable; listing is open
+      # for browsing. nginx serves byte ranges on static files natively.
+      locations."/files/" = {
+        alias = "/media/data/";
+        basicAuthFile = "/etc/shared-htpasswd";
+        extraConfig = ''
+          satisfy any;
+          allow 192.168.0.0/24;
+          deny all;
+
+          autoindex on;
+          charset utf-8;
+
+          # Only these subtrees exist under /files/
+          location ~ ^/files/(?!Anime/|Films/|Serials/|Unsorted/|$) {
+            return 404;
+          }
+
+          # File GETs: video + subtitle extensions only
+          location ~ ^/files/.+\.(?!(mkv|mp4|avi|webm|m4v|ass|srt|ssa|sub|vtt)$)[^.]+$ {
+            return 403;
+          }
+        '';
+      };
+
       # Calibre-web - /books
       # Use calibre-web's built-in reverse-proxy support (ReverseProxied reads
       # X-Script-Name) so Flask's url_for() prefixes EVERY generated URL with
