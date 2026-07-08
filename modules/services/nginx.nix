@@ -167,13 +167,22 @@ in
           autoindex on;
           charset utf-8;
 
-          # Only these subtrees exist under /files/
-          location ~ ^/files/(?!Anime/|Films/|Serials/|Unsorted/|$) {
+          # Only these subtrees exist under /files/. Using if+return (rather
+          # than nested locations) avoids the nested-location/alias quirk
+          # where a dot anywhere in a directory name (e.g.
+          # Anime/Frieren.S01.1080p/) fooled the old extension-filter regex
+          # into 403ing directory listings.
+          if ($uri ~ "^/files/(?!$|Anime/|Films/|Serials/|Unsorted/)") {
             return 404;
           }
 
-          # File GETs: video + subtitle extensions only
-          location ~ ^/files/.+\.(?!(mkv|mp4|avi|webm|m4v|ass|srt|ssa|sub|vtt)$)[^.]+$ {
+          # Fetchable: directory listings (trailing /) or allowed media/
+          # subtitle extensions, matched case-insensitively so Show.MKV
+          # works. The old regex required a literal dot to engage, so
+          # extensionless files (e.g. /files/Unsorted/SOMEFILE) fell through
+          # and were served instead of rejected; anchoring on "ends with / or
+          # .ext" closes that gap.
+          if ($uri !~* "(/|\.(mkv|mp4|avi|webm|m4v|ass|srt|ssa|sub|vtt))$") {
             return 403;
           }
         '';
