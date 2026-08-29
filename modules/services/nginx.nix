@@ -99,47 +99,6 @@ in
       };
     };
 
-    # differ.ahiru.pl - code review UI + MCP (proxies differ on :8576)
-    # UI behind the shared htpasswd like /books & friends; the MCP endpoint
-    # and its OAuth flow stay open (differ handles auth there itself, and
-    # basic auth would clobber MCP clients' Authorization: Bearer headers).
-    virtualHosts."differ.ahiru.pl" = {
-      enableACME = true;
-      forceSSL = true;
-
-      # UI + API + /events SSE — the browser sends the basic-auth creds on
-      # all of these. SSE needs no buffering + a long idle timeout.
-      locations."/" = {
-        proxyPass = "http://127.0.0.1:8576";
-        proxyWebsockets = true;
-        basicAuthFile = "/etc/shared-htpasswd";
-        extraConfig = ''
-          proxy_buffering off;
-          proxy_read_timeout 4h;
-        '';
-      };
-
-      # MCP endpoint — differ's own OAuth, streaming responses.
-      locations."^~ /mcp" = {
-        proxyPass = "http://127.0.0.1:8576";
-        extraConfig = ''
-          proxy_buffering off;
-          proxy_read_timeout 4h;
-        '';
-      };
-
-      # OAuth flow (register/authorize/token/revoke + GitHub callback).
-      locations."^~ /oauth/" = {
-        proxyPass = "http://127.0.0.1:8576";
-      };
-
-      # OAuth discovery. ACME's /.well-known/acme-challenge location still
-      # wins (longest prefix), so cert renewal is unaffected.
-      locations."^~ /.well-known/" = {
-        proxyPass = "http://127.0.0.1:8576";
-      };
-    };
-
     # media.ahiru.pl - services portal
     virtualHosts."media.ahiru.pl" = {
       enableACME = true;
