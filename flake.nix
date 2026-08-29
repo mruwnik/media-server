@@ -2,7 +2,7 @@
   description = "NixOS configuration for ahiru.pl home server (Raspberry Pi 4)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     # ⚠ TEMPORARY: last pre-curl-8.20 nixpkgs (rev 0c88e1f2, 2026-05-05), used
     # ONLY to pin rtorrent + libtorrent-rakshasa around the libtorrent epoll

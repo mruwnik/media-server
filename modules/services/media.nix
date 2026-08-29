@@ -120,40 +120,43 @@ in
   services.mpd = {
     enable = true;
     user = "mpd";
-    musicDirectory = "/media/data/Music";
-    playlistDirectory = "/var/lib/mpd/playlists";
-    dbFile = "/var/lib/mpd/mpd.db";
 
-    extraConfig = ''
+    settings = {
+      music_directory = "/media/data/Music";
+      playlist_directory = "/var/lib/mpd/playlists";
+      # Explicit: the 26.05 default is ${dataDir}/tag_cache, which would orphan
+      # the existing db and force a full rescan of the library.
+      db_file = "/var/lib/mpd/mpd.db";
+
       # Only local connections for control
-      bind_to_address "localhost"
+      bind_to_address = "localhost";
 
-      # Hardware audio output (3.5mm headphone jack)
-      audio_output {
-        type        "alsa"
-        name        "Headphones"
-        device      "hw:CARD=Headphones,DEV=0"
-        mixer_type  "software"
-      }
-
-      # HTTP streaming output (replaces Icecast)
-      audio_output {
-        type        "httpd"
-        name        "HTTP Stream"
-        encoder     "lame"
-        port        "8030"
-        bitrate     "192"
-        format      "44100:16:2"
-        always_on   "yes"
-        tags        "yes"
-      }
-
-      # Null output for when no listeners (prevents MPD from pausing)
-      audio_output {
-        type   "null"
-        name   "Null Output"
-      }
-    '';
+      audio_output = [
+        # Hardware audio output (3.5mm headphone jack)
+        {
+          type = "alsa";
+          name = "Headphones";
+          device = "hw:CARD=Headphones,DEV=0";
+          mixer_type = "software";
+        }
+        # HTTP streaming output (replaces Icecast)
+        {
+          type = "httpd";
+          name = "HTTP Stream";
+          encoder = "lame";
+          port = 8030;
+          bitrate = 192;
+          format = "44100:16:2";
+          always_on = "yes";
+          tags = "yes";
+        }
+        # Null output for when no listeners (prevents MPD from pausing)
+        {
+          type = "null";
+          name = "Null Output";
+        }
+      ];
+    };
   };
 
   # MPD user needs access to Music directory

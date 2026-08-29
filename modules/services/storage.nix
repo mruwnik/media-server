@@ -119,34 +119,42 @@ in
   # Bind mounts for NFS exports (NFSv4 pseudo-filesystem)
   fileSystems."/export/Films" = {
     device = "/media/data/Films";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/Anime" = {
     device = "/media/data/Anime";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/Serials" = {
     device = "/media/data/Serials";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/Music" = {
     device = "/media/data/Music";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/Books" = {
     device = "/media/data/Books";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/Unsorted" = {
     device = "/media/data/Unsorted";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/${primaryUser}-backup" = {
     device = "/media/data/backups/${primaryUser}";
+    fsType = "none";
     options = [ "bind" ];
   };
   fileSystems."/export/nadia" = {
     device = "/media/data/backups/nadia";
+    fsType = "none";
     options = [ "bind" ];
   };
 
