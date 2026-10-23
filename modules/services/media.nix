@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, pkgs, ... }:
 
 let
   primaryUser = config.ahiru.primaryUser.name;
@@ -62,12 +62,9 @@ in
 
   # Calibre user - system user to access Books directory.
   # Member of `users` (the library's owning group) so calibre-web can WRITE the
-  # library: edit metadata, regenerate covers, and accept uploads. The library
-  # dirs are setgid + group=users, so new entries stay group-owned by users.
-  # NB: /media/data/Books uses POSIX ACLs with a restrictive mask, so plain
-  # `chmod g+w` is NOT enough — the mask caps effective group perms at r-x.
-  # Group write is (re)granted declaratively by the activation script + the
-  # post-mount service below.
+  # library: edit metadata, regenerate covers, and accept uploads. Group write
+  # comes from a g:users:rwx ACL whose mask is kept rwx by the 0775 tmpfiles
+  # rule in storage.nix.
   users.users.calibre = {
     isSystemUser = true;
     group = "calibre";
@@ -76,43 +73,6 @@ in
     description = "Calibre-web service user";
   };
   users.groups.calibre = {};
-
-  # Because the library is calibre's home, the `users` activation step chmods
-  # it and resets the ACL mask to r-x, which re-caps the g:users:rwx grant and
-  # leaves calibre unable to write the library (edit metadata, covers, uploads).
-  # Re-apply the group-write ACL after that step on every rebuild — same pattern
-  # mcp.nix uses for /media/data/Unsorted. Only the top dir needs it (subdirs are
-  # setgid + already carry the ACL, and inherit the default for new entries).
-  system.activationScripts.calibreLibraryAccess = lib.stringAfter [ "users" ] ''
-    ${pkgs.acl}/bin/setfacl -m g:users:rwx ${bookLibrary} 2>/dev/null || true
-    ${pkgs.acl}/bin/setfacl -d -m g:users:rwx ${bookLibrary} 2>/dev/null || true
-  '';
-
-  # The activation script alone is not enough: on a `switch` that restarts
-  # calibre-web, the mask gets re-stomped to r-x *after* the activation script
-  # ran, and on a fresh boot the script fires before the USB HDD (/media/data =
-  # sda2) is mounted, so its setfacl hits the bare mountpoint and no-ops. Re-grant
-  # the ACL from a unit tied to calibre-web's own lifecycle instead: ordered
-  # `before` it, pulled in by it (wantedBy), non-persistent (RemainAfterExit =
-  # false) so it re-runs before *every* calibre-web (re)start — boot and
-  # switch-restart alike — and RequiresMountsFor so on boot it waits for the HDD
-  # and setfacl hits the real on-disk dir. This is the authoritative grant; the
-  # activation script above only covers a `switch` that leaves calibre-web
-  # running (mask stomped mid-run, no restart to trigger this unit).
-  systemd.services.calibre-library-acl = {
-    description = "Re-grant calibre group-write on the book library (before calibre-web)";
-    wantedBy = [ "calibre-web.service" ];
-    before = [ "calibre-web.service" ];
-    unitConfig.RequiresMountsFor = bookLibrary;
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = false;
-    };
-    script = ''
-      ${pkgs.acl}/bin/setfacl -m g:users:rwx ${bookLibrary}
-      ${pkgs.acl}/bin/setfacl -d -m g:users:rwx ${bookLibrary}
-    '';
-  };
 
   # ============================================================
   # MPD - Music Player Daemon

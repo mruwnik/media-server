@@ -201,8 +201,11 @@ in
     "z /media/data/Anime 0755 ${primaryUser} users -"
     "d /media/data/Audio 0755 ${primaryUser} users -"
     "z /media/data/Audio 0755 ${primaryUser} users -"
-    "d /media/data/Books 0755 ${primaryUser} users -"
-    "z /media/data/Books 0755 ${primaryUser} users -"
+    # 0775, not 0755: Books carries a g:users:rwx ACL (calibre writes via
+    # `users`), and on an ACL'd dir chmod's group bits set the mask — 0755
+    # would cap it to r-x on every switch/boot.
+    "d /media/data/Books 0775 ${primaryUser} users -"
+    "z /media/data/Books 0775 ${primaryUser} users -"
     "d /media/data/Films 0755 ${primaryUser} users -"
     "z /media/data/Films 0755 ${primaryUser} users -"
     "d /media/data/Music 0755 ${primaryUser} users -"
