@@ -63,6 +63,12 @@
   # Increase file descriptor limit for rtorrent (194 torrents * files per torrent)
   systemd.services.rtorrent.serviceConfig.LimitNOFILE = 65536;
 
+  # The upstream module's stale-lock cleanup looks in dataDir/session, but our
+  # session lives in .session/, so a hard power-off left rtorrent refusing to start.
+  systemd.services.rtorrent.serviceConfig.ExecStartPre = lib.mkAfter [
+    "${pkgs.bash}/bin/bash -c '${pkgs.procps}/bin/pidof rtorrent || rm -f /media/data/Unsorted/.session/rtorrent.lock'"
+  ];
+
   # Create hidden directories and remove non-hidden ones the NixOS module creates
   systemd.tmpfiles.rules = [
     "d /media/data/Unsorted/.downloading 0775 torrents torrents -"
