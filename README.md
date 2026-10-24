@@ -15,7 +15,7 @@ NixOS configuration for **ahiru** - a Raspberry Pi 4 home server running at [ahi
 | **Radicale** | 5232 | CalDAV calendar (`media.ahiru.pl/radicale/`) |
 | **myMPD** | 8080 | Music player (`media.ahiru.pl/music`) |
 | **MPD HTTP** | 8030 | Music streaming |
-| **git-shell** | 22 | SSH git hosting (`git@git.ahiru.pl:repo.git`) |
+| **git-shell** | 22 (WAN 2222) | SSH git hosting (`ssh://git@git.ahiru.pl:2222/~/dan/repo.git`) |
 | **msmtp** | - | Outbound email via Migadu |
 
 ## Structure

@@ -1,5 +1,17 @@
 { config, lib, pkgs, ... }:
 
+let
+  # git-shell has no per-repo ACLs, so the memory worker's key is pinned to notes.git
+  notesOnly = pkgs.writeShellScript "git-notes-only" ''
+    case "$SSH_ORIGINAL_COMMAND" in
+      "git-upload-pack 'dan/notes.git'" | "git-receive-pack 'dan/notes.git'" | \
+      "git-upload-pack '~/dan/notes.git'" | "git-receive-pack '~/dan/notes.git'")
+        exec ${pkgs.git}/bin/git-shell -c "$SSH_ORIGINAL_COMMAND" ;;
+    esac
+    echo "this key may only fetch/push dan/notes.git" >&2
+    exit 1
+  '';
+in
 {
   # ============================================================
   # Git - SSH-only git hosting with git-shell
@@ -17,6 +29,7 @@
     openssh.authorizedKeys.keys = [
       # Dan's SSH key (same as main user)
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN/7ZMH3Q2QQQFD6Ugtv8Lii2WTdYV3GM0aYa5Bu+Bvw me@ahiru.pl"
+      ''restrict,command="${notesOnly}" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ2QkurKfikfXCarrSn0GGZ1V39hIlXfqB0EmkMd03Ko memory@ahiru.pl''
     ];
   };
   users.groups.git = {};
