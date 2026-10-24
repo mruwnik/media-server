@@ -39,9 +39,13 @@ in
   # Ensure git home directory exists
   systemd.tmpfiles.rules = [
     "d /media/data/git/repos 0755 git git -"
-    "d /media/data/git/repos/git-shell-commands 0755 root root -"
-    "L+ /media/data/git/repos/git-shell-commands/notes-only - - - - ${notesOnly}"
   ];
+
+  # Not tmpfiles: it refuses the dan→git ownership transition under /media/data
+  system.activationScripts.gitShellCommands = lib.stringAfter [ "users" ] ''
+    install -d -o root -g root -m 0755 /media/data/git/repos/git-shell-commands
+    ln -sfn ${notesOnly} /media/data/git/repos/git-shell-commands/notes-only
+  '';
 
   # Git package available system-wide
   environment.systemPackages = [ pkgs.git ];
