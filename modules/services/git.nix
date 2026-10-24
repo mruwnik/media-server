@@ -1,7 +1,9 @@
 { config, lib, pkgs, ... }:
 
 let
-  # git-shell has no per-repo ACLs, so the memory worker's key is pinned to notes.git
+  # git-shell has no per-repo ACLs, so the memory worker's key is pinned to notes.git.
+  # sshd runs forced commands via the login shell (git-shell), which only execs
+  # names from ~/git-shell-commands, hence the symlink below.
   notesOnly = pkgs.writeShellScript "git-notes-only" ''
     case "$SSH_ORIGINAL_COMMAND" in
       "git-upload-pack 'dan/notes.git'" | "git-receive-pack 'dan/notes.git'" | \
@@ -29,7 +31,7 @@ in
     openssh.authorizedKeys.keys = [
       # Dan's SSH key (same as main user)
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN/7ZMH3Q2QQQFD6Ugtv8Lii2WTdYV3GM0aYa5Bu+Bvw me@ahiru.pl"
-      ''restrict,command="${notesOnly}" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ2QkurKfikfXCarrSn0GGZ1V39hIlXfqB0EmkMd03Ko memory@ahiru.pl''
+      ''restrict,command="notes-only" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ2QkurKfikfXCarrSn0GGZ1V39hIlXfqB0EmkMd03Ko memory@ahiru.pl''
     ];
   };
   users.groups.git = {};
@@ -37,6 +39,8 @@ in
   # Ensure git home directory exists
   systemd.tmpfiles.rules = [
     "d /media/data/git/repos 0755 git git -"
+    "d /media/data/git/repos/git-shell-commands 0755 root root -"
+    "L+ /media/data/git/repos/git-shell-commands/notes-only - - - - ${notesOnly}"
   ];
 
   # Git package available system-wide
