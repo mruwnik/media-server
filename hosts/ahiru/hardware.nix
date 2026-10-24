@@ -1,11 +1,7 @@
 { config, lib, pkgs, ... }:
 
 {
-  # Raspberry Pi 4
-  raspberry-pi-nix.board = "bcm2711";
-
   # Enable audio (3.5mm headphone jack)
-  # Note: also need dtparam=audio=on in /boot/firmware/config.txt
   boot.kernelParams = [
     "snd_bcm2835.enable_headphones=1"
   ];
@@ -20,10 +16,18 @@
   '';
 
   # Root filesystem on USB HDD (sda1) - 30GB partition
-  # mkForce required to override raspberry-pi-nix sd-image defaults
+  # mkForce required to override the sd-image defaults (ahiru-base image)
   fileSystems."/" = {
     device = lib.mkForce "/dev/disk/by-label/NIXOS_ROOT";
     fsType = lib.mkForce "ext4";
+  };
+
+  # U-Boot reads extlinux.conf and the generations' kernels from here. On the SD
+  # card (not the USB HDD) because U-Boot's mmc support is the reliable path;
+  # it carries the MBR bootable flag so U-Boot scans it rather than partition 1.
+  fileSystems."/boot" = {
+    device = "/dev/disk/by-label/NIXOS_BOOT";
+    fsType = "ext4";
   };
 
   # Boot firmware partition on SD card (required for Pi bootloader)

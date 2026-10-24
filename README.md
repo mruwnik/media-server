@@ -149,8 +149,10 @@ To use a different primary username, edit `modules/common/users.nix` and change 
 
 ## Major NixOS Version Upgrades
 
-Upgrading nixpkgs to a new stable channel (e.g. `nixos-24.11` → `nixos-25.11`) requires
-building the kernel from source, since `raspberry-pi-nix` packages aren't in the binary cache.
+nixpkgs follows `nixos-raspberrypi`'s lock, whose vendor kernel is in
+`nixos-raspberrypi.cachix.org`, so channel moves happen when that input moves to the new
+channel and normally build nothing heavy. The procedure below is only needed on a kernel
+cache miss (e.g. overriding the kernel version).
 
 The Pi 4's 30GB root partition is too small for a kernel build with debug symbols (~15GB temp
 files), and `/tmp` is a 1.9GB tmpfs. You need to temporarily redirect build temp files to the
@@ -191,9 +193,6 @@ drop will kill the build otherwise.
 
 - **Renamed packages** (e.g. `mpc-cli` → `mpc` in 25.11) — `nixos-rebuild` will error
   with clear messages.
-- **API incompatibilities** with `raspberry-pi-nix` — the libcamera fork used by
-  raspberry-pi-nix may lag behind nixpkgs. The pipewire libcamera plugin is disabled
-  via overlay in `hosts/ahiru/base.nix` for this reason.
 - **OOM** — don't use `--max-jobs` > 1 on a 4GB Pi for kernel builds.
 - **Step 5 builds the closure without applying** — if it succeeds, step 6 (`nixos-rebuild
   switch`) will reuse the cached kernel and only build the remaining derivations.

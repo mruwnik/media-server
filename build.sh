@@ -14,7 +14,7 @@ docker run --rm -t \
     set -e
     echo "Building NixOS image..."
     OUT=$(nix --extra-experimental-features "nix-command flakes" \
-          build ".#images.ahiru" --no-link --print-out-paths)
+          build ".#images.ahiru-base" --no-link --print-out-paths)
     echo "Built: $OUT"
     echo "Copying image..."
     cp "$OUT/sd-image/"*.img.zst /work/result.img.zst

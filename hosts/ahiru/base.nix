@@ -14,18 +14,10 @@
 
   nixpkgs.config.allowUnfree = true;
 
-  # Disable pipewire's libcamera plugin - incompatible with raspberry-pi-nix's
-  # older libcamera fork (missing ControlId::vendor() and isArray() methods)
   # Relax calibre-web's `requests<2.33.0` upper bound: nixpkgs ships 2.33.1
   # and the runtime check otherwise fails the build.
   nixpkgs.overlays = [
     (final: prev: {
-      pipewire = prev.pipewire.overrideAttrs (old: {
-        mesonFlags = (old.mesonFlags or []) ++ [
-          "-Dlibcamera=disabled"
-        ];
-        buildInputs = builtins.filter (dep: dep != null && (dep.pname or "") != "libcamera") (old.buildInputs or []);
-      });
       calibre-web = prev.calibre-web.overrideAttrs (old: {
         pythonRelaxDeps = (old.pythonRelaxDeps or []) ++ [ "requests" ];
       });
