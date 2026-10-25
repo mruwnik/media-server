@@ -32,6 +32,7 @@ in
       # Dan's SSH key (same as main user)
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN/7ZMH3Q2QQQFD6Ugtv8Lii2WTdYV3GM0aYa5Bu+Bvw me@ahiru.pl"
       ''restrict,command="notes-only" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ2QkurKfikfXCarrSn0GGZ1V39hIlXfqB0EmkMd03Ko memory@ahiru.pl''
+      ''restrict,command="notes-only" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINKnsH7Hng/5m5pGKmzd48vrLrkw8935gIckVHx6lhZ+ memory@ahiru.pl''
     ];
   };
   users.groups.git = {};
