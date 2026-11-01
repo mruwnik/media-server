@@ -19,9 +19,34 @@ in
   # Ports 80/443 defined in networking.nix
 
   # Shared htpasswd file - created by tmpfiles, populated by deploy-secrets.sh
+  # /files/ also admits users from files-htpasswd-extra (e.g. anime-watch, the
+  # off-LAN mpv login) so a credential stored on a laptop can only read media,
+  # not log into calibre/flood/myMPD/radicale/MCP via the shared file.
   systemd.tmpfiles.rules = [
     "f /etc/shared-htpasswd 0640 root htpasswd-readers -"
+    "f /etc/files-htpasswd-extra 0640 root htpasswd-readers -"
   ];
+
+  systemd.services.files-htpasswd = {
+    description = "Merge shared + files-only htpasswd for /files/";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "nginx.service" ];
+    after = [ "systemd-tmpfiles-setup.service" ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      tmp=$(mktemp /etc/files-htpasswd.XXXXXX)
+      cat /etc/shared-htpasswd /etc/files-htpasswd-extra > "$tmp"
+      chown root:htpasswd-readers "$tmp"
+      chmod 640 "$tmp"
+      mv "$tmp" /etc/files-htpasswd
+    '';
+  };
+
+  # nginx re-reads auth_basic_user_file per request, so regenerating suffices.
+  systemd.paths.files-htpasswd = {
+    wantedBy = [ "multi-user.target" ];
+    pathConfig.PathChanged = [ "/etc/shared-htpasswd" "/etc/files-htpasswd-extra" ];
+  };
 
   services.nginx = {
     enable = true;
@@ -117,7 +142,7 @@ in
       # for browsing. nginx serves byte ranges on static files natively.
       locations."/files/" = {
         alias = "/media/data/";
-        basicAuthFile = "/etc/shared-htpasswd";
+        basicAuthFile = "/etc/files-htpasswd";
         extraConfig = ''
           satisfy any;
           allow 192.168.0.0/24;
