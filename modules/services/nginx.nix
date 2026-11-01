@@ -19,34 +19,9 @@ in
   # Ports 80/443 defined in networking.nix
 
   # Shared htpasswd file - created by tmpfiles, populated by deploy-secrets.sh
-  # /files/ also admits users from files-htpasswd-extra (e.g. anime-watch, the
-  # off-LAN mpv login) so a credential stored on a laptop can only read media,
-  # not log into calibre/flood/myMPD/radicale/MCP via the shared file.
   systemd.tmpfiles.rules = [
     "f /etc/shared-htpasswd 0640 root htpasswd-readers -"
-    "f /etc/files-htpasswd-extra 0640 root htpasswd-readers -"
   ];
-
-  systemd.services.files-htpasswd = {
-    description = "Merge shared + files-only htpasswd for /files/";
-    wantedBy = [ "multi-user.target" ];
-    before = [ "nginx.service" ];
-    after = [ "systemd-tmpfiles-setup.service" ];
-    serviceConfig.Type = "oneshot";
-    script = ''
-      tmp=$(mktemp /etc/files-htpasswd.XXXXXX)
-      cat /etc/shared-htpasswd /etc/files-htpasswd-extra > "$tmp"
-      chown root:htpasswd-readers "$tmp"
-      chmod 640 "$tmp"
-      mv "$tmp" /etc/files-htpasswd
-    '';
-  };
-
-  # nginx re-reads auth_basic_user_file per request, so regenerating suffices.
-  systemd.paths.files-htpasswd = {
-    wantedBy = [ "multi-user.target" ];
-    pathConfig.PathChanged = [ "/etc/shared-htpasswd" "/etc/files-htpasswd-extra" ];
-  };
 
   services.nginx = {
     enable = true;
@@ -137,16 +112,18 @@ in
       };
 
       # Direct video file access for the anime watch flow (spec 2026-07-08).
-      # LAN needs no auth; outside requires the shared htpasswd (same posture
-      # as Flood). Only video/subtitle files are fetchable; listing is open
-      # for browsing. nginx serves byte ranges on static files natively.
+      # LAN needs no auth; outside takes the shared htpasswd (browsers) or an
+      # MCP OAuth bearer token (mpv client), so the laptop needs no password.
+      # Only video/subtitle files are fetchable; listing is open for browsing.
+      # nginx serves byte ranges on static files natively.
       locations."/files/" = {
         alias = "/media/data/";
-        basicAuthFile = "/etc/files-htpasswd";
+        basicAuthFile = "/etc/shared-htpasswd";
         extraConfig = ''
           satisfy any;
           allow 192.168.0.0/24;
           deny all;
+          auth_request /_files_auth;
 
           autoindex on;
           charset utf-8;
@@ -169,6 +146,15 @@ in
           if ($uri !~* "(/|\.(mkv|mp4|avi|webm|m4v|ass|srt|ssa|sub|vtt))$") {
             return 403;
           }
+        '';
+      };
+
+      locations."= /_files_auth" = {
+        proxyPass = "http://127.0.0.1:3001/files-auth";
+        extraConfig = ''
+          internal;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
         '';
       };
 
