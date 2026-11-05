@@ -131,6 +131,10 @@ in
     source = ../../static/media-index.html;
     mode = "0644";
   };
+  environment.etc."www/media/learn.html" = {
+    source = ../../static/media-learn.html;
+    mode = "0644";
+  };
   environment.etc."www/media/img/bus.jpg" = {
     source = ../../static/media-img/bus.jpg;
     mode = "0644";
@@ -150,6 +154,7 @@ in
     script = ''
       mkdir -p /var/www/media/img
       cp /etc/www/media/index.html /var/www/media/index.html
+      cp /etc/www/media/learn.html /var/www/media/learn.html
       cp /etc/www/media/img/bus.jpg /var/www/media/img/bus.jpg
       chown -R nginx:nginx /var/www/media
     '';

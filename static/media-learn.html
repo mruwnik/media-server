@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn</title>
+<style>
+  :root {
+    --bg: #f7f5f0; --card: #ffffff; --ink: #1d1b18; --muted: #77716a; --line: #e4dfd6;
+    --accent: #b5452f; --hard: #fbe7e1; --ok: #2f7d4f; --warn: #b07a12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513; --card: #1f1e1b; --ink: #ece8e1; --muted: #9a938a; --line: #34312c;
+      --accent: #e0775f; --hard: #3a2420; --ok: #6cc08e; --warn: #e0b453;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0 auto 0 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 24px 0 8px; }
+  input, button {
+    font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  input { width: 9em; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #status { font-size: 13px; color: var(--muted); min-height: 1.4em; }
+  #status.error { color: var(--accent); }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  li {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; cursor: pointer;
+  }
+  li.hard { background: var(--hard); border-color: var(--accent); }
+  .front { font-size: 22px; font-weight: 600; }
+  .reading { color: var(--muted); font-size: 14px; margin-left: 6px; font-weight: 400; }
+  .back { grid-column: 1; }
+  .note { grid-column: 1; font-size: 13px; color: var(--muted); }
+  .meta { grid-column: 2; grid-row: 1 / span 3; text-align: right; font-size: 12px; color: var(--muted); }
+  .chips { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; margin-bottom: 4px; }
+  .chip { border-radius: 99px; padding: 1px 7px; font-size: 11px; border: 1px solid currentColor; }
+  .chip.used { color: var(--ok); }
+  .chip.asked { color: var(--warn); }
+  .chip.misused { color: var(--accent); }
+  .chip.seen { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+  #login { text-align: center; padding: 64px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Learn</h1>
+    <input id="deck" aria-label="Deck" placeholder="deck">
+    <button id="logout" hidden>Log out</button>
+  </header>
+  <div id="status"></div>
+
+  <section id="login" hidden>
+    <p>Sign in to your MCP server to see your decks.</p>
+    <button class="primary" id="login-btn">Log in</button>
+  </section>
+
+  <section id="content" hidden>
+    <h2 id="session-title">This session</h2>
+    <ul id="session"></ul>
+    <h2>Due</h2>
+    <ul id="due"></ul>
+  </section>
+</main>
+
+<script>
+const SERVER = "https://ahiru.pl";
+const MCP_URL = `${SERVER}/mcp`;
+// Unknown client ids are auto-created server-side, so no /register round-trip
+const CLIENT_ID = "learn-web";
+const POLL_MS = 5000;
+const HARD_EASE = 2.2;
+const SPEECH_LANGS = { japanese: "ja-JP" };
+
+const $ = (id) => document.getElementById(id);
+const redirectUri = () => location.origin + location.pathname;
+
+const store = {
+  get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+  del(key) { try { localStorage.removeItem(key); } catch {} },
+};
+
+function setStatus(text, isError = false) {
+  $("status").textContent = text;
+  $("status").className = isError ? "error" : "";
+}
+
+// --- OAuth (authorization code + PKCE) ---
+
+const b64url = (bytes) =>
+  btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+async function login() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  sessionStorage.setItem("pkce", JSON.stringify({ verifier, state }));
+  location.href = `${SERVER}/authorize?` + new URLSearchParams({
+    response_type: "code", client_id: CLIENT_ID, redirect_uri: redirectUri(),
+    code_challenge: challenge, code_challenge_method: "S256", state,
+  });
+}
+
+async function tokenRequest(fields) {
+  const resp = await fetch(`${SERVER}/token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: "Basic " + btoa(`${CLIENT_ID}:`),
+    },
+    body: new URLSearchParams({ client_id: CLIENT_ID, ...fields }),
+  });
+  if (!resp.ok) throw new Error(`token endpoint: ${resp.status} ${await resp.text()}`);
+  const t = await resp.json();
+  const auth = { access_token: t.access_token, refresh_token: t.refresh_token, expires_at: Date.now() + (t.expires_in ?? 3600) * 1000 };
+  store.set("auth", auth);
+  return auth;
+}
+
+async function finishLogin(params) {
+  const pkce = JSON.parse(sessionStorage.getItem("pkce") || "null");
+  sessionStorage.removeItem("pkce");
+  history.replaceState(null, "", redirectUri());
+  if (!pkce || params.get("state") !== pkce.state) throw new Error("Login state mismatch, try again");
+  return tokenRequest({
+    grant_type: "authorization_code", code: params.get("code"),
+    redirect_uri: redirectUri(), code_verifier: pkce.verifier,
+  });
+}
+
+async function accessToken() {
+  const auth = store.get("auth");
+  if (!auth) return null;
+  if (auth.expires_at - Date.now() > 60_000) return auth.access_token;
+  try {
+    return (await tokenRequest({ grant_type: "refresh_token", refresh_token: auth.refresh_token })).access_token;
+  } catch {
+    store.del("auth");
+    return null;
+  }
+}
+
+// --- MCP ---
+
+class AuthError extends Error {}
+
+async function callTool(name, args) {
+  const token = await accessToken();
+  if (!token) throw new AuthError("Not logged in");
+  const resp = await fetch(MCP_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name, arguments: args } }),
+  });
+  if (resp.status === 401) { store.del("auth"); throw new AuthError("Session expired"); }
+  if (!resp.ok) throw new Error(`${name}: HTTP ${resp.status}`);
+  const text = await resp.text();
+  const data = resp.headers.get("content-type")?.includes("event-stream")
+    ? text.split("\n").filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).at(-1)
+    : text;
+  const msg = JSON.parse(data);
+  if (msg.error) throw new Error(`${name}: ${msg.error.message}`);
+  const result = msg.result;
+  if (result.isError) throw new Error(`${name}: ${result.content?.[0]?.text}`);
+  const payload = result.structuredContent ?? JSON.parse(result.content[0].text);
+  if (payload.error) throw new Error(`${name}: ${payload.error}`);
+  return payload;
+}
+
+// --- Rendering ---
+
+function speak(item) {
+  if (!("speechSynthesis" in window)) return;
+  const u = new SpeechSynthesisUtterance(item.front);
+  u.lang = SPEECH_LANGS[item.deck] ?? "";
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+function el(tag, attrs = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), attrs);
+  node.append(...children.filter((c) => c != null && c !== ""));
+  return node;
+}
+
+function itemNode(item, events) {
+  const hard = item.ease < HARD_EASE || events?.some((e) => e === "asked" || e === "misused");
+  const chips = el("div", { className: "chips" }, ...(events ?? []).map((e) => el("span", { className: `chip ${e}` }, e)));
+  const li = el("li", { className: hard ? "hard" : "", title: "Tap to hear" },
+    el("div", { className: "front" }, item.front, item.reading ? el("span", { className: "reading" }, item.reading) : null),
+    el("div", { className: "meta" }, chips, `ease ${item.ease.toFixed(2)}`, el("br"),
+       item.lapses ? `${item.lapses} lapse${item.lapses > 1 ? "s" : ""}` : ""),
+    item.back ? el("div", { className: "back" }, item.back) : null,
+    item.note ? el("div", { className: "note" }, item.note) : null,
+  );
+  li.addEventListener("click", () => speak(item));
+  return li;
+}
+
+function renderList(ul, nodes, emptyText) {
+  ul.replaceChildren(...(nodes.length ? nodes : [el("li", { className: "empty" }, emptyText)]));
+  if (!nodes.length) ul.firstChild.style.cssText = "background:none;border:none;cursor:default";
+}
+
+function showLoggedIn(loggedIn) {
+  $("login").hidden = loggedIn;
+  $("content").hidden = !loggedIn;
+  $("logout").hidden = !loggedIn;
+}
+
+async function refresh() {
+  const deck = $("deck").value.trim();
+  if (!deck || !store.get("auth")) return;
+  try {
+    const [recent, due] = await Promise.all([
+      callTool("learn_recent", { deck }),
+      callTool("learn_due", { deck, limit: 30 }),
+    ]);
+    const sessionFronts = new Set(recent.items.map((i) => i.front));
+    $("session-title").textContent = recent.session ? `This session (#${recent.session})` : "This session";
+    renderList($("session"), [...recent.items].reverse().map((i) => itemNode(i, i.session_events)), "Nothing yet.");
+    renderList($("due"), due.items.filter((i) => !sessionFronts.has(i.front)).map((i) => itemNode(i)), "Nothing due.");
+    setStatus(`Updated ${new Date().toLocaleTimeString()}`);
+    showLoggedIn(true);
+  } catch (e) {
+    if (e instanceof AuthError) showLoggedIn(false);
+    setStatus(e.message, true);
+  }
+}
+
+// --- Boot ---
+
+$("deck").value = store.get("deck") ?? "japanese";
+$("deck").addEventListener("change", () => { store.set("deck", $("deck").value.trim()); refresh(); });
+$("login-btn").addEventListener("click", login);
+$("logout").addEventListener("click", () => { store.del("auth"); showLoggedIn(false); setStatus(""); });
+
+(async () => {
+  const params = new URLSearchParams(location.search);
+  if (params.has("code")) {
+    try { await finishLogin(params); } catch (e) { setStatus(e.message, true); }
+  } else if (params.has("error")) {
+    setStatus(`Login failed: ${params.get("error")}`, true);
+    history.replaceState(null, "", redirectUri());
+  }
+  showLoggedIn(!!store.get("auth"));
+  await refresh();
+  setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+})();
+</script>
+</body>
+</html>
