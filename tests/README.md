@@ -29,7 +29,10 @@ tests/
     resources.sh    CPU temp + memory (fail past thresholds) + load (WARN)
     host.sh         disk usage + under-voltage/throttling
     public.sh       blog/portal/auth-gate via the real domains (DNS+TLS)  [takes -u]
-    security.sh     compromise tripwires (outbound from service users)
+    security.sh     compromise tripwires (outbound from service users, blocked
+                    rtorrent destinations, execs by services via auditd)
+    log-review.sh   daily: Claude reads yesterday's log-review digest (key in
+                    /etc/anthropic-api-key; SKIPs without it). Not hourly: paid call
   diagnostics.sh    runs every checks/*.sh, aggregates, prints OVERALL verdict
   external.sh       laptop entrypoint → checks/public.sh
   notify.sh         reads stdin, sends to email (msmtp) + Discord; no-op on empty
@@ -60,6 +63,8 @@ you want those checks.
 
 ## Notes
 
+- `notify.sh` spools mail that fails to send to `/var/lib/health-check/mail-spool`
+  and resends it on its next run (the hourly health-check always calls it).
 - `notify.sh` takes the email from `$NOTIFY_EMAIL`/`$MAILTO`, else `notify_email`
   in `/etc/monitoring-config`; Discord from `$DISCORD_WEBHOOK_URL` or
   `/etc/ahiru-discord-webhook`. Each channel self-guards and is skipped if
@@ -74,4 +79,6 @@ you want those checks.
   failures to `notify.sh`. It replaced the old inline alerting +
   `/root/test-services.sh`. Thresholds + `notify_email` come from
   `/etc/monitoring-config`. No dedup — a persistent failure re-alerts hourly.
+  A separate `log-review-llm` timer (01:00) runs `checks/log-review.sh` alone and
+  mails `[ahiru] daily log review`.
 ```

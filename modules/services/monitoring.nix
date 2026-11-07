@@ -11,6 +11,13 @@ let
     chmod -R u+w "$out"
     chmod +x "$out"/*.sh "$out"/checks/*.sh
   '';
+
+  # Everything checks/*.sh + notify.sh need. /run/wrappers/bin (added in the
+  # scripts) provides setuid sudo for calibre.sh's write-access drop to calibre.
+  checkPath = with pkgs; [
+    bash coreutils gawk gnugrep gnused systemd curl
+    sqlite iproute2 procps libraspberrypi yq jq msmtp audit
+  ];
 in
 {
   # ============================================================
@@ -41,12 +48,7 @@ in
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
 
-    # Everything checks/*.sh + notify.sh need. /run/wrappers/bin (added in the
-    # script) provides setuid sudo for calibre.sh's write-access drop to calibre.
-    path = with pkgs; [
-      bash coreutils gawk gnugrep gnused systemd curl
-      sqlite iproute2 procps libraspberrypi yq jq msmtp
-    ];
+    path = checkPath;
 
     serviceConfig = {
       Type = "oneshot";
@@ -74,6 +76,31 @@ in
       done
 
       "$HC/notify.sh" "[ahiru] health alert" < "$fails"
+    '';
+  };
+
+  # Claude reads the 00:20 log-review digest; see tests/checks/log-review.sh.
+  systemd.timers.log-review-llm = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*-*-* 01:00:00";
+      Persistent = true;
+    };
+  };
+
+  systemd.services.log-review-llm = {
+    description = "Daily LLM review of the log digest";
+    after = [ "network-online.target" "log-review.service" ];
+    wants = [ "network-online.target" ];
+    path = checkPath;
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root";
+    };
+    script = ''
+      set -u
+      export PATH="/run/wrappers/bin:$PATH"
+      "${healthChecks}/checks/log-review.sh" | "${healthChecks}/notify.sh" "[ahiru] daily log review"
     '';
   };
 

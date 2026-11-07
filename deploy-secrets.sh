@@ -46,6 +46,13 @@ if [ -f "$SECRETS_DIR/monitoring.yaml" ]; then
   REMOTE_COMMANDS+="sudo mv /tmp/monitoring.yaml /etc/monitoring-config && sudo chmod 644 /etc/monitoring-config; "
 fi
 
+# Anthropic API key for the daily LLM log review (tests/checks/log-review.sh)
+if [ -f "$SECRETS_DIR/anthropic-api-key" ]; then
+  echo "  → anthropic-api-key → /etc/anthropic-api-key"
+  scp -q "$SECRETS_DIR/anthropic-api-key" "$HOST:/tmp/anthropic-api-key"
+  REMOTE_COMMANDS+="sudo install -m 600 -o root -g root /tmp/anthropic-api-key /etc/anthropic-api-key && rm -f /tmp/anthropic-api-key; "
+fi
+
 # HTTP Basic Auth users - generate htpasswd locally and copy
 if [ -f "$SECRETS_DIR/htpasswd.yaml" ]; then
   echo "  → htpasswd.yaml → /etc/htpasswd-secrets + /etc/shared-htpasswd"
