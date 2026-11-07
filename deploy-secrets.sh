@@ -80,6 +80,8 @@ if [ -f "$SECRETS_DIR/htpasswd.yaml" ]; then
     sudo mv /tmp/shared-htpasswd /etc/shared-htpasswd
     sudo chown root:htpasswd-readers /etc/shared-htpasswd
     sudo chmod 640 /etc/shared-htpasswd
+    # radicale only wires up bcrypt checking if bcrypt entries exist at startup.
+    sudo systemctl try-restart radicale
   '
 fi
 
