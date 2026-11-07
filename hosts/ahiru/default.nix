@@ -22,6 +22,7 @@
     ../../modules/services/updates.nix
     ../../modules/services/monitoring.nix
     ../../modules/services/mpd-rating.nix
+    ../../modules/services/security.nix
   ];
 
   # 26.05 flipped this default to true. Adopting systemd stage 1 is not something

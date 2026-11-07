@@ -29,6 +29,7 @@ tests/
     resources.sh    CPU temp + memory (fail past thresholds) + load (WARN)
     host.sh         disk usage + under-voltage/throttling
     public.sh       blog/portal/auth-gate via the real domains (DNS+TLS)  [takes -u]
+    security.sh     compromise tripwires (outbound from service users)
   diagnostics.sh    runs every checks/*.sh, aggregates, prints OVERALL verdict
   external.sh       laptop entrypoint → checks/public.sh
   notify.sh         reads stdin, sends to email (msmtp) + Discord; no-op on empty

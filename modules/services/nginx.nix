@@ -127,6 +127,8 @@ in
 
           autoindex on;
           charset utf-8;
+          # A symlink named *.mkv could otherwise serve any file nginx can read.
+          disable_symlinks on;
 
           # Only these subtrees exist under /files/. Using if+return (rather
           # than nested locations) avoids the nested-location/alias quirk
