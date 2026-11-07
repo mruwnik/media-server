@@ -32,8 +32,9 @@ fi
 if ! auditctl -s >/dev/null 2>&1; then
     skip "service execs" "auditctl needs root"
 else
+    # Without a tty ausearch only reads the logs given --input-logs.
     # shellcheck disable=SC2046  # date and time are two ausearch arguments
-    execs=$(LC_ALL=C ausearch -k svc-exec -i -ts $(LC_ALL=C date -d -65min '+%x %T') 2>/dev/null \
+    execs=$(LC_ALL=C ausearch --input-logs -k svc-exec -i -ts $(LC_ALL=C date -d -65min '+%x %T') 2>/dev/null \
         | awk 'BEGIN { RS = "----" }
                match($0, / uid=[^ ]+/) { u = substr($0, RSTART + 5, RLENGTH - 5) }
                match($0, /argc=[0-9]+ [^\n]*/) { print u ": " substr($0, RSTART, RLENGTH) }' \

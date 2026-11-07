@@ -72,8 +72,6 @@ in
   # chown/chmod, Flood's df every 10s), so it is excluded for rtorrent's uid;
   # its start-up `sh -c` calls are filtered by argv in tests/checks/security.sh.
   security.auditd.enable = true;
-  # ausearch's built-in default isn't where auditd writes.
-  security.auditd.settings.log_file = "/var/log/audit/audit.log";
   security.audit = {
     enable = true;
     rules = [
