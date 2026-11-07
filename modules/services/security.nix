@@ -6,22 +6,77 @@ let
   # mcp is logged too (it legitimately calls a few APIs) for the daily review.
   # Static users only: a name iptables can't resolve aborts the firewall.
   watchedUsers = [ "nginx" "mpd" "radicale" "mcp" ];
+  # Byte counters for log-review's Traffic section; position + 1 is the user's connmark.
+  accountedUsers = [ "torrents" ] ++ watchedUsers;
+  # Services whose every exec is alerted on by tests/checks/security.sh.
+  execWatchedUsers = [ "torrents" "nginx" "mpd" "radicale" ];
+  forEachUser = users: f: lib.concatLines (lib.imap1 f users);
 in
 {
   networking.firewall.extraCommands = ''
     ip46tables -D OUTPUT -j out-watch 2>/dev/null || true
-    ip46tables -F out-watch 2>/dev/null || ip46tables -N out-watch
+    ip46tables -D OUTPUT -j acct-out 2>/dev/null || true
+    ip46tables -D INPUT -j acct-in 2>/dev/null || true
+    for chain in out-watch out-torrents out-block acct-in acct-out; do
+      ip46tables -F $chain 2>/dev/null || ip46tables -N $chain
+    done
+
+    # rtorrent (and Flood, same uid) only needs public peers and trackers; the
+    # LAN and remote-admin/mail ports are pivot targets. Loopback (local DNS) is
+    # exempt via out-watch's lo rule, and the router is resolv.conf's fallback.
+    ip46tables -A out-block -m limit --limit 6/min --limit-burst 20 -j LOG --log-prefix "out-block rtorrent: "
+    ip46tables -A out-block -j REJECT
+    iptables -A out-torrents -d 192.168.0.1 -p udp --dport 53 -j RETURN
+    iptables -A out-torrents -d 192.168.0.1 -p tcp --dport 53 -j RETURN
+    iptables -A out-torrents -d 192.168.0.0/16 -j out-block
+    iptables -A out-torrents -d 10.0.0.0/8 -j out-block
+    ip6tables -A out-torrents -d fc00::/7 -j out-block
+    ip6tables -A out-torrents -d fe80::/10 -j out-block
+    ip46tables -A out-torrents -p tcp -m multiport --dports 22,23,25,445,465,587,2222,3389 -j out-block
+
     ip46tables -A out-watch -o lo -j RETURN
-    ${builtins.concatStringsSep "\n" (map (u: ''
+    ip46tables -A out-watch -m owner --uid-owner torrents -m conntrack --ctstate NEW -j out-torrents
+    ${lib.concatMapStrings (u: ''
       ip46tables -A out-watch -m owner --uid-owner ${u} -m conntrack --ctstate NEW \
         -m limit --limit 6/min --limit-burst 20 -j LOG --log-prefix "out-watch ${u}: "
-    '') watchedUsers)}
+    '') watchedUsers}
     ip46tables -A OUTPUT -j out-watch
+
+    # Outbound bytes by socket owner; the connmark carries the owner over to the
+    # inbound half of the same flows, where the owner match can't see.
+    ip46tables -A acct-out -o lo -j RETURN
+    ${forEachUser accountedUsers (i: u: ''
+      ip46tables -A acct-out -m owner --uid-owner ${u} -m comment --comment "out ${u}" -j CONNMARK --set-xmark ${toString i}/0xff
+    '')}
+    ip46tables -A acct-in -i lo -j RETURN
+    # A peer's SYN arrives before rtorrent's socket has marked the flow.
+    ip46tables -A acct-in -p tcp --dport ${toString config.services.rtorrent.port} -m conntrack --ctstate NEW -j CONNMARK --set-xmark 1/0xff
+    ${forEachUser accountedUsers (i: u: ''
+      ip46tables -A acct-in -m connmark --mark ${toString i}/0xff -m comment --comment "in ${u}" -j RETURN
+    '')}
+    # A reload resets the counters; log-review reads this to flag a partial day.
+    ip46tables -A acct-in -m comment --comment "since $(date +%s)"
+    ip46tables -I INPUT 1 -j acct-in
+    ip46tables -A OUTPUT -j acct-out
   '';
 
   networking.firewall.extraStopCommands = ''
     ip46tables -D OUTPUT -j out-watch 2>/dev/null || true
+    ip46tables -D OUTPUT -j acct-out 2>/dev/null || true
+    ip46tables -D INPUT -j acct-in 2>/dev/null || true
   '';
+
+  # Tripwire: these services never exec anything, bar the rtorrent/Flood
+  # helpers. Coreutils is one multicall binary here (rtorrent's mkdir/mv/chown/
+  # chmod, Flood's df every 10s), so it is the one exclusion; rtorrent's
+  # start-up `sh -c` calls are filtered by argv in tests/checks/security.sh.
+  security.auditd.enable = true;
+  security.audit = {
+    enable = true;
+    rules = [
+      "-a never,exit -F arch=b64 -S execve -F uid=torrents -F exe=${pkgs.coreutils}/bin/coreutils"
+    ] ++ map (u: "-a always,exit -F arch=b64 -S execve,execveat -F success=1 -F uid=${u} -k svc-exec") execWatchedUsers;
+  };
 
   # Bans IPs that brute-force sshd or probe nginx, and pulls the community
   # blocklist in exchange for reporting our own bans (IP + scenario only:
