@@ -49,6 +49,8 @@
     enable = true;
     settings = {
       PasswordAuthentication = false;
+      # Otherwise PAM still offers password prompts to brute-forcers.
+      KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
     };
   };
