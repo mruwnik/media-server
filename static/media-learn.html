@@ -50,6 +50,14 @@
   .chip.asked { color: var(--warn); }
   .chip.misused { color: var(--accent); }
   .chip.seen { color: var(--muted); }
+  .marks { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+  .marks button {
+    min-width: 44px; min-height: 36px; padding: 0; background: none;
+    border-color: var(--line); color: var(--muted); font-size: 16px; line-height: 1;
+  }
+  .marks button.used:hover, .marks button.used:active { color: var(--ok); border-color: var(--ok); }
+  .marks button.asked:hover, .marks button.asked:active { color: var(--accent); border-color: var(--accent); }
+  .marks button:disabled { opacity: .4; cursor: default; }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
   #login { text-align: center; padding: 64px 0; }
 </style>
@@ -201,13 +209,33 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+function markButtons(item) {
+  const buttons = [["used", "✓", "Known"], ["asked", "✗", "Unknown"]].map(([event, label, title]) => {
+    const b = el("button", { className: event, title, ariaLabel: title }, label);
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      buttons.forEach((x) => { x.disabled = true; });
+      try {
+        await callTool("learn_log", { deck: $("deck").value.trim(), entries: [{ front: item.front, event }] });
+      } catch (err) {
+        setStatus(err.message, true);
+        buttons.forEach((x) => { x.disabled = false; });
+        return;
+      }
+      await refresh();
+    });
+    return b;
+  });
+  return el("div", { className: "marks" }, ...buttons);
+}
+
 function itemNode(item, events) {
   const hard = item.ease < HARD_EASE || events?.some((e) => e === "asked" || e === "misused");
   const chips = el("div", { className: "chips" }, ...(events ?? []).map((e) => el("span", { className: `chip ${e}` }, e)));
   const li = el("li", { className: hard ? "hard" : "", title: "Tap to hear" },
     el("div", { className: "front" }, item.front, item.reading ? el("span", { className: "reading" }, item.reading) : null),
     el("div", { className: "meta" }, chips, `ease ${item.ease.toFixed(2)}`, el("br"),
-       item.lapses ? `${item.lapses} lapse${item.lapses > 1 ? "s" : ""}` : ""),
+       item.lapses ? `${item.lapses} lapse${item.lapses > 1 ? "s" : ""}` : "", markButtons(item)),
     item.back ? el("div", { className: "back" }, item.back) : null,
     item.note ? el("div", { className: "note" }, item.note) : null,
   );

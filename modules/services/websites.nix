@@ -145,6 +145,8 @@ in
     description = "Set up media.ahiru.pl portal";
     wantedBy = [ "multi-user.target" ];
     after = [ "local-fs.target" ];
+    # The script only names /etc paths, so it wouldn't re-run when the files change
+    restartTriggers = map (f: config.environment.etc."www/media/${f}".source) [ "index.html" "learn.html" "img/bus.jpg" ];
 
     serviceConfig = {
       Type = "oneshot";
