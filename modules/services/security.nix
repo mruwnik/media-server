@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   # Service users that never initiate off-box connections; any NEW outbound
@@ -67,7 +67,23 @@ in
     # Every start runs `cscli hub update`, which fails if blocky isn't up yet.
     Restart = "on-failure";
   };
+  # go-re2 runs on wazero's interpreter here: compiling the grok patterns takes
+  # >15 min of CPU instead of ~5s with Go's regexp.
+  systemd.services.crowdsec.environment.CROWDSEC_FEATURE_RE2_DISABLE_GROK_SUPPORT = "true";
   users.users.crowdsec.extraGroups = [ "nginx" ];
+  # The module's setup runs `cscli machines add` before `capi register`, and the
+  # former refuses to start without the CAPI credentials file.
+  systemd.tmpfiles.rules = [
+    "f /var/lib/crowdsec/state/online_api_credentials.yaml 0600 crowdsec crowdsec -"
+  ];
+  # The bouncer-register script calls the unwrapped cscli, which only looks here.
+  environment.etc."crowdsec/config.yaml".source =
+    (pkgs.formats.yaml { }).generate "crowdsec.yaml" config.services.crowdsec.settings.general;
 
   services.crowdsec-firewall-bouncer.enable = true;
+  # With DynamicUser its StateDirectory=crowdsec moves /var/lib/crowdsec into
+  # /var/lib/private, where crowdsec.service (no StateDirectory) can't reach it.
+  systemd.services.crowdsec-firewall-bouncer-register.serviceConfig.DynamicUser = lib.mkForce false;
+  # Upstream only Requires= it, so the bouncer races the API key into existence.
+  systemd.services.crowdsec-firewall-bouncer.after = [ "crowdsec-firewall-bouncer-register.service" ];
 }
