@@ -67,13 +67,17 @@ in
   '';
 
   # Tripwire: these services never exec anything, bar the rtorrent/Flood
-  # helpers. Coreutils is one multicall binary here (rtorrent's mkdir/mv/chown/
-  # chmod, Flood's df every 10s), so it is the one exclusion; rtorrent's
-  # start-up `sh -c` calls are filtered by argv in tests/checks/security.sh.
+  # helpers. Execs by systemd itself (ExecStart*, ExecReload: ppid 1) are
+  # excluded. Coreutils is one multicall binary here (rtorrent's mkdir/mv/
+  # chown/chmod, Flood's df every 10s), so it is excluded for rtorrent's uid;
+  # its start-up `sh -c` calls are filtered by argv in tests/checks/security.sh.
   security.auditd.enable = true;
+  # ausearch's built-in default isn't where auditd writes.
+  security.auditd.settings.log_file = "/var/log/audit/audit.log";
   security.audit = {
     enable = true;
     rules = [
+      "-a never,exit -F arch=b64 -S execve,execveat -F ppid=1"
       "-a never,exit -F arch=b64 -S execve -F uid=torrents -F exe=${pkgs.coreutils}/bin/coreutils"
     ] ++ map (u: "-a always,exit -F arch=b64 -S execve,execveat -F success=1 -F uid=${u} -k svc-exec") execWatchedUsers;
   };
