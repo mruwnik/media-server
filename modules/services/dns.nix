@@ -24,6 +24,10 @@
         "https://dns.google/dns-query"
       ];
 
+      # No IPv6 uplink: dialling the DoH servers' v6 addresses fails with
+      # "network is unreachable" ~1.6k times a day.
+      connectIPVersion = "v4";
+
       # Bootstrap DNS (for resolving DoH hostnames)
       bootstrapDns = [
         { upstream = "1.1.1.1"; }
@@ -44,8 +48,9 @@
             "https://adaway.org/hosts.txt"
             "https://v.firebog.net/hosts/AdguardDNS.txt"
           ];
+          # urlhaus' own hostfile went 410 Gone; this is its maintained mirror.
           malware = [
-            "https://urlhaus.abuse.ch/downloads/hostfile/"
+            "https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-hosts.txt"
           ];
         };
         # Allowlist for false positives
