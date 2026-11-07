@@ -31,7 +31,7 @@ in
     iptables -A out-torrents -d 192.168.0.1 -p udp --dport 53 -j RETURN
     iptables -A out-torrents -d 192.168.0.1 -p tcp --dport 53 -j RETURN
     iptables -A out-torrents -d 192.168.0.0/24 -j out-block
-    ip46tables -A out-torrents -p tcp -m multiport --dports 22,23,25,445,465,587,2222,3389 -j out-block
+    ip46tables -A out-torrents -p tcp -m multiport --dports 22,23,25,445,465,587,3389 -j out-block
     iptables -A out-torrents -d 192.168.0.0/16 -j REJECT
     iptables -A out-torrents -d 10.0.0.0/8 -j REJECT
     ip6tables -A out-torrents -d fc00::/7 -j REJECT

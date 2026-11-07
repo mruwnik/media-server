@@ -28,7 +28,8 @@ fi
 
 # Execs by services that never exec (audit key svc-exec), minus rtorrent's
 # start-up shell calls and the lock check forked by its ExecStartPre (its other
-# helpers are coreutils, excluded in the rule).
+# helpers are coreutils, excluded in the rule), and radicale's start-up log line
+# (platform.platform() runs `uname -p`).
 if ! auditctl -s >/dev/null 2>&1; then
     skip "service execs" "auditctl needs root"
 else
@@ -39,7 +40,7 @@ else
                match($0, / uid=[^ ]+/) { u = substr($0, RSTART + 5, RLENGTH - 5) }
                match($0, /argc=[0-9]+ [^\n]*/) { print u ": " substr($0, RSTART, RLENGTH) }' \
         | sed -E 's/argc=[0-9]+ a0=//; s/ a[0-9]+=/ /g' \
-        | grep -vE '^torrents: (sh -c "?(mkdir -p |echo >)/media/data/Unsorted/|/nix/store/[^ ]*-procps-[^ /]*/bin/pidof rtorrent ?$)' \
+        | grep -vE '^torrents: (sh -c "?(mkdir -p |echo >)/media/data/Unsorted/|/nix/store/[^ ]*-procps-[^ /]*/bin/pidof rtorrent ?$)|^radicale: uname -p ?$' \
         | cut -c1-100 | top5)
     if [ -z "$execs" ]; then pass "no execs by rtorrent/nginx/mpd/radicale"
     else fail "service executed a program" "$execs"; fi
