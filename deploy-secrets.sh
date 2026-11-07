@@ -61,9 +61,8 @@ if [ -f "$SECRETS_DIR/htpasswd.yaml" ]; then
       if [[ "$pass" == \$* ]]; then
         echo "$current_user:$pass" >> /tmp/shared-htpasswd
       else
-        salt=$(openssl rand -base64 6 | tr -dc "a-zA-Z0-9" | head -c 8)
-        hash=$(openssl passwd -apr1 -salt "$salt" "$pass")
-        echo "$current_user:$hash" >> /tmp/shared-htpasswd
+        # Cost 7 ≈ 20ms per check on the Pi: nginx re-verifies on every basic-auth request.
+        printf %s "$pass" | htpasswd -niB -C 7 "$current_user" | head -1 >> /tmp/shared-htpasswd
       fi
       current_user=""
     fi

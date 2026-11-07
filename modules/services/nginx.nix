@@ -32,6 +32,17 @@ in
     recommendedProxySettings = true;
     recommendedTlsSettings = true;
 
+    # Password guessing on the MCP login form: only POSTs count (an empty key
+    # is not limited), so loading the page never trips it.
+    appendHttpConfig = ''
+      map $request_method $login_limit_key {
+        POST    $binary_remote_addr;
+        default "";
+      }
+      limit_req_zone $login_limit_key zone=login:1m rate=5r/m;
+      limit_req_status 429;
+    '';
+
     # Catch-all default server: reject requests that don't match a known vhost
     # (e.g. direct hits to the server's IP). Prevents nginx from borrowing
     # ahiru.pl's cert and serving its content to unknown-Host requests.
@@ -89,6 +100,7 @@ in
         proxyPass = "http://127.0.0.1:3001/login";
         extraConfig = ''
           proxy_intercept_errors off;
+          limit_req zone=login burst=5 nodelay;
         '';
       };
       locations."/.well-known/" = {

@@ -17,7 +17,7 @@
       auth = {
         type = "htpasswd";
         htpasswd_filename = "/etc/shared-htpasswd";
-        htpasswd_encryption = "md5";  # apr1 hashes
+        htpasswd_encryption = "autodetect";
       };
       storage = {
         filesystem_folder = "/media/data/calendar/collection-root";
