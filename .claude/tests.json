@@ -1,0 +1,9 @@
+{
+  "suites": {
+    "default": {
+      "argv": ["uv", "run", "--no-project", "--with", "pytest", "--with", "drain3==0.9.11", "pytest"],
+      "runner": "pytest",
+      "description": "Python helpers embedded in nix modules (modules/services/test_*.py)"
+    }
+  }
+}

@@ -82,6 +82,13 @@
 
       # Logging
       log.level = "info";
+      # Per-query log to daily CSVs instead of the journal, where ~300k
+      # queries/day crowded everything else out of the 500M cap.
+      queryLog = {
+        type = "csv";
+        target = "/var/log/blocky";
+        logRetentionDays = 14;
+      };
     };
   };
 }
