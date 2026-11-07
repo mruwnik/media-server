@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 let
   py = pkgs.python3Packages;
@@ -30,7 +30,7 @@ in
 
   systemd.services.log-review = {
     description = "Daily templated log digest (journal, nginx, DNS)";
-    path = [ pkgs.systemd pkgs.getent pkgs.gawk ];
+    path = [ pkgs.systemd pkgs.getent pkgs.gawk config.networking.firewall.package ];
     serviceConfig = {
       Type = "oneshot";
       User = "root";
@@ -44,7 +44,7 @@ in
     };
     script = ''
       export WAN_IP=$(getent ahosts ahiru.pl | awk 'NR==1 {print $1}')
-      exec ${log-review}/bin/log-review
+      exec ${log-review}/bin/log-review --zero-counters
     '';
   };
 

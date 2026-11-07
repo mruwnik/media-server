@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,14 @@ MAX_RARE_LINES = 400
 
 NGINX_RE = re.compile(r'^(\S+) \S+ \S+ \[([^\]]+)\] "([^"]*)" (\d{3}) \S+ "[^"]*" "([^"]*)"')
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+LOGIN_RE = re.compile(r"^sshd(?:-session)?: Accepted \S+ for (\S+) from (\S+) port")
+FAILED_RE = re.compile(r"^systemd: (?:(\S+): Failed with result '([^']*)'|Failed to start (.+?))\.?$")
+# Per-track and polling chatter: every song title would otherwise be its own rare line.
+NOISE_RE = re.compile(
+    r"^(mpd|mympd|crowdsec): .*?(?:update: |player: played|Jukebox adding song|for uri |Image cache file|/v1/decisions/stream)"
+)
+COUNTER_RE = re.compile(r"^\s*\d+\s+(\d+)\s.*/\* (in|out) (\S+) \*/", re.M)
+SINCE_RE = re.compile(r"/\* since (\d+) \*/")
 MASKS = [
     # Song titles, URIs etc. would otherwise make every line its own "new" pattern.
     (r'"[^"]*"', "STR"),
@@ -80,8 +89,11 @@ def fence(lines):
     return "```text\n" + "\n".join(clean(x) for x in lines) + "\n```"
 
 
-def new_miner(state_path=None, sim_th=0.4):
+def new_miner(state_path=None, sim_th=0.4, numeric_prefix=False):
     config = TemplateMinerConfig()
+    # Lets a first token like "lan-st404" route to its own tree node, so
+    # templates with different statuses can never merge.
+    config.parametrize_numeric_tokens = not numeric_prefix
     config.drain_sim_th = sim_th
     config.drain_depth = 4
     config.drain_max_clusters = 20000
@@ -121,10 +133,10 @@ class Patterns:
         return sorted(self.seen.values(), key=lambda p: -p.count)
 
 
-def mine_all(lines, state_path, sim_th=0.4):
+def mine_all(lines, state_path, **miner_args):
     """Mine (key, example) pairs with snapshotting paused:
     drain3 would otherwise rewrite its state file on every new cluster."""
-    miner = new_miner(state_path, sim_th)
+    miner = new_miner(state_path, **miner_args)
     handler, miner.persistence_handler = miner.persistence_handler, None
     patterns = Patterns(miner)
     for line in lines:
@@ -159,7 +171,7 @@ def render_patterns(title, patterns):
     return "\n".join(out)
 
 
-def journal_lines(day):
+def journal_entries(day):
     nxt = day + dt.timedelta(days=1)
     proc = subprocess.Popen(
         ["journalctl", "--since", f"{day} 00:00", "--until", f"{nxt} 00:00", "-o", "json",
@@ -171,7 +183,72 @@ def journal_lines(day):
         msg = e.get("MESSAGE")
         if not isinstance(msg, str):
             continue
-        yield f"{e.get('SYSLOG_IDENTIFIER') or e.get('_SYSTEMD_UNIT') or '?'}: {msg}", None
+        ts = dt.datetime.fromtimestamp(int(e["__REALTIME_TIMESTAMP"]) / 1e6).strftime("%H:%M:%S")
+        yield ts, f"{e.get('SYSLOG_IDENTIFIER') or e.get('_SYSTEMD_UNIT') or '?'}: {msg}"
+
+
+@dataclass
+class Siphon:
+    logins: list = field(default_factory=list)
+    failed: list = field(default_factory=list)
+    noise: Counter = field(default_factory=Counter)
+
+
+def triage(entries, siphon):
+    """Pass journal lines on to Drain, setting aside what gets a section of its own."""
+    for ts, text in entries:
+        if LOGIN_RE.match(text):
+            siphon.logins.append(text)
+        if m := FAILED_RE.match(text):
+            unit, result, desc = m.groups()
+            siphon.failed.append((ts, unit or desc, result or "failed to start"))
+        if m := NOISE_RE.match(text):
+            siphon.noise[m.group(1)] += 1
+            continue
+        yield text, None
+
+
+def render_logins(lines, wan_ip):
+    keys = [LOGIN_RE.match(x).groups() for x in lines]
+    examples = {}
+    for key, line in zip(keys, lines):
+        examples.setdefault(key, line)
+    rows = [f"- ×{n} {clean(user)} from {ip} ({client_bucket(ip, wan_ip)})" for (user, ip), n in Counter(keys).most_common()]
+    return "\n".join(["## Logins", f"{len(lines)} accepted SSH logins", *rows] + ([fence(examples.values())] if lines else []))
+
+
+def render_failed(failed):
+    rows = [f"- {ts} {clean(unit)} ({clean(result)})" for ts, unit, result in failed]
+    return "\n".join(["## Failed units", *(rows or ["none"])])
+
+
+def render_noise(noise):
+    counts = ", ".join(f"{unit} ×{n}" for unit, n in noise.most_common())
+    return f"## Collapsed noise (track, jukebox and LAPI polling lines)\n{counts or 'none'}"
+
+
+def counter_listings(zero):
+    zero_flag = ["-Z"] if zero else []
+    return [
+        subprocess.run([tool, "-L", chain, "-vxn", *zero_flag], capture_output=True, text=True).stdout
+        for tool in ("iptables", "ip6tables") for chain in ("acct-in", "acct-out")
+    ]
+
+
+def render_traffic(listings, now):
+    totals = Counter()
+    for text in listings:
+        for nbytes, direction, user in COUNTER_RE.findall(text):
+            totals[(user, direction)] += int(nbytes)
+    if not totals:
+        return "## Traffic\nno accounting counters (acct-in/acct-out chains missing?)"
+    age = now - max(int(x) for text in listings for x in SINCE_RE.findall(text))
+    # The digest zeroes the counters daily, so a younger chain means a reload in between.
+    note = (f"Bytes since a firewall reload {age / 3600:.1f}h ago (counters reset): partial."
+            if age < 86400 else "Bytes since the previous digest.")
+    rows = [f"| {u} | {totals[(u, 'in')] / 2**20:.1f} | {totals[(u, 'out')] / 2**20:.1f} |"
+            for u in sorted({u for u, _ in totals})]
+    return "\n".join(["## Traffic", note, "| user | in MB | out MB |", "|---|---|---|", *rows])
 
 
 def nginx_entries(day, log_dir):
@@ -190,10 +267,12 @@ def render_nginx(lines, wan_ip, state_path):
     entries = [(line, parse_nginx(line)) for line in lines]
     buckets = Counter()
     public_ips = Counter()
+    garbage = Counter()
     keyed = []
     for line, e in entries:
-        if not e:
-            keyed.append((f"unparsed {line}", line))
+        # Scanner TLS hellos and binary payloads: who sent them matters, not their bytes.
+        if not e or e["method"] == "-":
+            garbage[e["ip"] if e else line.split(" ", 1)[0]] += 1
             continue
         b = client_bucket(e["ip"], wan_ip)
         buckets[(b, e["status"][0] + "xx")] += 1
@@ -202,15 +281,16 @@ def render_nginx(lines, wan_ip, state_path):
         # Path segments as tokens so Drain generalises per segment rather than
         # collapsing every path into one <*>; the bucket keeps public apart from LAN.
         path = e["path"].replace("/", " /").replace("?", " ?")
-        # "st" prefix keeps the status out of the NUM mask.
-        keyed.append((f"{b} {e['method']} st{e['status']}{path}", line))
+        # Status lives in the first token (see new_miner); "st" keeps it out of the NUM mask.
+        keyed.append((f"{b}-st{e['status']} {e['method']}{path}", line))
 
     table = ["| client | 2xx | 3xx | 4xx | 5xx |", "|---|---|---|---|---|"]
     for b in ("lan", "wan", "anthropic", "public"):
         table.append(f"| {b} | " + " | ".join(str(buckets[(b, s)]) for s in ("2xx", "3xx", "4xx", "5xx")) + " |")
     top = ", ".join(f"{ip} ×{n}" for ip, n in public_ips.most_common(10))
-    summary = "\n".join(table) + f"\n\nTop public IPs: {top or 'none'}"
-    return summary, mine_all(keyed, state_path, sim_th=0.7)
+    junk = ", ".join(f"{ip} ×{n}" for ip, n in garbage.most_common(20))
+    summary = "\n".join(table) + f"\n\nTop public IPs: {top or 'none'}\nUnparsed/binary requests: {junk or 'none'}"
+    return summary, mine_all(keyed, state_path, sim_th=0.7, numeric_prefix=True)
 
 
 def render_dns(path):
@@ -238,14 +318,22 @@ def main():
     ap.add_argument("--nginx-dir", type=Path, default=Path("/var/log/nginx"))
     ap.add_argument("--dns-dir", type=Path, default=Path("/var/log/blocky"))
     ap.add_argument("--wan-ip", default=os.environ.get("WAN_IP"))
+    ap.add_argument("--zero-counters", action="store_true", help="reset the traffic counters after reading them")
     args = ap.parse_args()
 
     state = args.out / "state"
     state.mkdir(parents=True, exist_ok=True)
-    journal = mine_all(journal_lines(args.date), state / "journal.bin")
-    nginx_summary, nginx = render_nginx(nginx_entries(args.date, args.nginx_dir), args.wan_ip, state / "nginx.bin")
+    traffic = render_traffic(counter_listings(args.zero_counters), time.time())
+    siphon = Siphon()
+    journal = mine_all(triage(journal_entries(args.date), siphon), state / "journal.bin")
+    # New name since status moved into the key: every old template would re-flag as new.
+    nginx_summary, nginx = render_nginx(nginx_entries(args.date, args.nginx_dir), args.wan_ip, state / "nginx-status.bin")
 
     body = "\n\n".join([
+        traffic,
+        render_logins(siphon.logins, args.wan_ip),
+        render_failed(siphon.failed),
+        render_noise(siphon.noise),
         render_patterns("Journal", journal),
         "## nginx\n" + nginx_summary,
         render_patterns("nginx requests", nginx),

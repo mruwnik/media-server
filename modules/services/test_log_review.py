@@ -1,6 +1,11 @@
 import pytest
 
-from log_review import Patterns, client_bucket, fence, new_miner, parse_dns, parse_nginx
+from collections import Counter
+
+from log_review import (
+    Patterns, Siphon, client_bucket, fence, new_miner, parse_dns, parse_nginx,
+    render_logins, render_nginx, render_traffic, triage,
+)
 
 WAN = "194.181.243.144"
 
@@ -95,3 +100,100 @@ def test_first_run_is_baseline_not_new():
 )
 def test_fence_neutralises_and_truncates(lines, expected):
     assert fence(lines) == expected
+
+
+def nginx_line(ip, request, status):
+    return f'{ip} - - [06/Nov/2026:12:00:00 +0100] "{request}" {status} 1 "-" "ua"'
+
+
+def test_render_nginx_never_wildcards_status():
+    lines = [nginx_line("192.168.0.5", f"GET /music/{c} HTTP/1.1", s) for c in "abcde" for s in (200, 404)]
+
+    _, patterns = render_nginx(lines, WAN, None)
+
+    assert sorted(p.template for p in patterns.result()) == ["lan-st200 GET /music <*>", "lan-st404 GET /music <*>"]
+
+
+def test_render_nginx_counts_garbage_requests_per_ip():
+    lines = [nginx_line("1.2.3.4", "\\x16\\x03\\x01", 400)] * 2 + [nginx_line("5.6.7.8", "\\x00", 400), "9.9.9.9 junk"]
+
+    summary, patterns = render_nginx(lines, WAN, None)
+
+    assert summary.splitlines()[-1] == "Unparsed/binary requests: 1.2.3.4 ×2, 5.6.7.8 ×1, 9.9.9.9 ×1"
+    assert patterns.result() == []
+
+
+LOGIN = "sshd-session: Accepted publickey for dan from 192.168.0.5 port 1 ssh2: ED25519 SHA256:x"
+LAPI = ('crowdsec: time="x" level=info msg="127.0.0.1 - [x] \\"GET /v1/decisions/stream?a=b HTTP/1.1 200 4ms '
+        '\\"crowdsec-firewall-bouncer/v0.0.34\\" \\"" module=lapi')
+
+
+@pytest.mark.parametrize(
+    "text, logins, failed, noise, passed",
+    [
+        (LOGIN, [LOGIN], [], {}, True),
+        ("systemd: mcp.service: Failed with result 'exit-code'.", [], [("12:07:00", "mcp.service", "exit-code")], {}, True),
+        ("systemd: Failed to start Update ahiru.pl blog.", [], [("12:07:00", "Update ahiru.pl blog", "failed to start")], {}, True),
+        ("mpd: update: updating Some/Song.ogg", [], [], {"mpd": 1}, False),
+        ('mpd: player: played "Some/Song.ogg"', [], [], {"mpd": 1}, False),
+        ('mympd: NOTICE   api        "default": Jukebox adding song: A/B.mp3', [], [], {"mympd": 1}, False),
+        ('mympd: WARN     api        Can not create albumkey for uri "A/B.ogg", tags empty', [], [], {"mympd": 1}, False),
+        (LAPI, [], [], {"crowdsec": 1}, False),
+        ("mpd: exception: No such song", [], [], {}, True),
+    ],
+)
+def test_triage(text, logins, failed, noise, passed):
+    siphon = Siphon()
+
+    out = list(triage([("12:07:00", text)], siphon))
+
+    assert (siphon.logins, siphon.failed, siphon.noise, out) == (logins, failed, Counter(noise), [(text, None)] * passed)
+
+
+def test_render_logins_counts_per_user_and_ip():
+    lines = [f"sshd-session: Accepted publickey for dan from 192.168.0.5 port {p} ssh2" for p in (1, 2)] + [
+        "sshd-session: Accepted publickey for root from 6.6.6.6 port 3 ssh2"
+    ]
+
+    assert render_logins(lines, WAN) == "\n".join([
+        "## Logins",
+        "3 accepted SSH logins",
+        "- ×2 dan from 192.168.0.5 (lan)",
+        "- ×1 root from 6.6.6.6 (public)",
+        fence([lines[0], lines[2]]),
+    ])
+
+
+IPT_IN = """Chain acct-in (1 references)
+    pkts      bytes target     prot opt in     out     source               destination
+       5      500 RETURN     all  --  lo     *       0.0.0.0/0            0.0.0.0/0
+      10  3145728 RETURN     all  --  *      *       0.0.0.0/0            0.0.0.0/0            connmark match  0x1/0xff /* in torrents */
+       0        0            all  --  *      *       0.0.0.0/0            0.0.0.0/0            /* since 1794000000 */
+"""
+IPT_OUT = """Chain acct-out (1 references)
+    pkts      bytes target     prot opt in     out     source               destination
+      10  1048576 CONNMARK   all  --  *      *       0.0.0.0/0            0.0.0.0/0            owner UID match 1001 /* out torrents */ CONNMARK xset 0x1/0xff
+       2     2048 CONNMARK   all  --  *      *       0.0.0.0/0            0.0.0.0/0            owner UID match 60 /* out nginx */ CONNMARK xset 0x2/0xff
+"""
+
+
+@pytest.mark.parametrize(
+    "now, note",
+    [
+        (1794000000 + 90000, "Bytes since the previous digest."),
+        (1794000000 + 3600, "Bytes since a firewall reload 1.0h ago (counters reset): partial."),
+    ],
+)
+def test_render_traffic_sums_tables(now, note):
+    assert render_traffic([IPT_IN, IPT_OUT, IPT_IN], now) == "\n".join([
+        "## Traffic",
+        note,
+        "| user | in MB | out MB |",
+        "|---|---|---|",
+        "| nginx | 0.0 | 0.0 |",
+        "| torrents | 6.0 | 1.0 |",
+    ])
+
+
+def test_render_traffic_without_counters():
+    assert render_traffic(["", ""], 0) == "## Traffic\nno accounting counters (acct-in/acct-out chains missing?)"
