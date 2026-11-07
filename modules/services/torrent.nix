@@ -60,14 +60,24 @@
     '';
   };
 
-  # Increase file descriptor limit for rtorrent (194 torrents * files per torrent)
-  systemd.services.rtorrent.serviceConfig.LimitNOFILE = 65536;
+  systemd.services.rtorrent.unitConfig.RequiresMountsFor = "/media/data";
+  systemd.services.rtorrent.serviceConfig = {
+    # Increase file descriptor limit for rtorrent (194 torrents * files per torrent)
+    LimitNOFILE = 65536;
 
-  # The upstream module's stale-lock cleanup looks in dataDir/session, but our
-  # session lives in .session/, so a hard power-off left rtorrent refusing to start.
-  systemd.services.rtorrent.serviceConfig.ExecStartPre = lib.mkAfter [
-    "${pkgs.bash}/bin/bash -c '${pkgs.procps}/bin/pidof rtorrent || rm -f /media/data/Unsorted/.session/rtorrent.lock'"
-  ];
+    # The upstream module's stale-lock cleanup looks in dataDir/session, but our
+    # session lives in .session/, so a hard power-off left rtorrent refusing to start.
+    ExecStartPre = lib.mkAfter [
+      "${pkgs.bash}/bin/bash -c '${pkgs.procps}/bin/pidof rtorrent || rm -f /media/data/Unsorted/.session/rtorrent.lock'"
+    ];
+
+    # Tighten the module's sandbox (ProtectSystem=full) to the one tree rtorrent
+    # writes: downloads, finished-download moves, session and logs all live there.
+    ProtectSystem = lib.mkForce "strict";
+    ReadWritePaths = [ "/media/data/Unsorted" ];
+    ProtectHome = true;
+    MemoryDenyWriteExecute = true;
+  };
 
   # Create hidden directories and remove non-hidden ones the NixOS module creates
   systemd.tmpfiles.rules = [
