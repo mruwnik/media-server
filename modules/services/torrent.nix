@@ -9,6 +9,7 @@
 
   # Open port for incoming peer connections
   networking.firewall.allowedTCPPorts = [ 50000 ];
+  networking.firewall.allowedUDPPorts = [ 50000 ];
 
   # ============================================================
   # rtorrent - BitTorrent client
