@@ -23,7 +23,7 @@ else
     blocked=$(printf '%s\n' "$klog" | grep -oE 'out-block rtorrent: .*DST=[^ ]+( .*DPT=[0-9]+)?' \
         | sed -E 's/.*DST=([^ ]+)(.*DPT=([0-9]+))?.*/\1:\3/' | top5)
     if [ -z "$blocked" ]; then pass "no blocked rtorrent destinations"
-    else fail "rtorrent tried a LAN/admin destination" "$blocked"; fi
+    else fail "rtorrent tried our LAN or an admin port" "$blocked"; fi
 fi
 
 # Execs by services that never exec (audit key svc-exec), minus rtorrent's

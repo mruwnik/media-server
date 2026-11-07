@@ -24,15 +24,18 @@ in
     # rtorrent (and Flood, same uid) only needs public peers and trackers; the
     # LAN and remote-admin/mail ports are pivot targets. Loopback (local DNS) is
     # exempt via out-watch's lo rule, and the router is resolv.conf's fallback.
+    # DHT/PEX peers advertise their own private addresses, so only our LAN and
+    # the admin ports are alerted on; other private ranges are rejected quietly.
     ip46tables -A out-block -m limit --limit 6/min --limit-burst 20 -j LOG --log-prefix "out-block rtorrent: "
     ip46tables -A out-block -j REJECT
     iptables -A out-torrents -d 192.168.0.1 -p udp --dport 53 -j RETURN
     iptables -A out-torrents -d 192.168.0.1 -p tcp --dport 53 -j RETURN
-    iptables -A out-torrents -d 192.168.0.0/16 -j out-block
-    iptables -A out-torrents -d 10.0.0.0/8 -j out-block
-    ip6tables -A out-torrents -d fc00::/7 -j out-block
-    ip6tables -A out-torrents -d fe80::/10 -j out-block
+    iptables -A out-torrents -d 192.168.0.0/24 -j out-block
     ip46tables -A out-torrents -p tcp -m multiport --dports 22,23,25,445,465,587,2222,3389 -j out-block
+    iptables -A out-torrents -d 192.168.0.0/16 -j REJECT
+    iptables -A out-torrents -d 10.0.0.0/8 -j REJECT
+    ip6tables -A out-torrents -d fc00::/7 -j REJECT
+    ip6tables -A out-torrents -d fe80::/10 -j REJECT
 
     ip46tables -A out-watch -o lo -j RETURN
     ip46tables -A out-watch -m owner --uid-owner torrents -m conntrack --ctstate NEW -j out-torrents
