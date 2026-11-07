@@ -14,9 +14,9 @@ SUBJECT="${1:-ahiru alert}"
 log() { logger -t ahiru-notify "$*" 2>/dev/null || true; printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
 
 BODY=$(cat)
-if [ -z "$(printf '%s' "${BODY}" | tr -d '[:space:]')" ]; then
-    exit 0
-fi
+# Mail that failed to send (e.g. during a network outage) waits here; the
+# hourly health-check calls this script even when it has nothing to report.
+SPOOL=/var/lib/health-check/mail-spool
 
 # Email address: env wins, else notify_email from /etc/monitoring-config (the
 # same file the health-check reads). Parse with yq if present, else a plain grep.
@@ -47,8 +47,24 @@ discord_configured() {
 send_email() {
     [ -n "${ALERT_EMAIL}" ] || { log "no notify email configured; skipping email"; return 0; }
     email_configured || { log "WARN: msmtp not configured; skipping email"; return 0; }
-    printf 'Subject: %s\nTo: %s\n\n%s\n' "${SUBJECT}" "${ALERT_EMAIL}" "${BODY}" \
-        | msmtp "${ALERT_EMAIL}" 2>/dev/null || log "WARN: email send failed"
+    msg=$(printf 'Subject: %s\nTo: %s\nDate: %s\n\n%s\n' "${SUBJECT}" "${ALERT_EMAIL}" "$(date -R)" "${BODY}")
+    printf '%s\n' "${msg}" | msmtp -t 2>/dev/null && return 0
+    if mkdir -p "${SPOOL}" 2>/dev/null && printf '%s\n' "${msg}" > "${SPOOL}/$(date +%s)-$$.eml"; then
+        log "WARN: email send failed; spooled for the next run"
+    else
+        log "WARN: email send failed"
+    fi
+}
+
+flush_spool() {
+    email_configured || return 0
+    for f in "${SPOOL}"/*.eml; do
+        [ -f "${f}" ] || continue
+        if msmtp -t < "${f}" 2>/dev/null; then
+            rm -f "${f}"
+            log "sent spooled mail ${f##*/}"
+        fi
+    done
 }
 
 send_discord() {
@@ -75,5 +91,9 @@ ${BODY}
     rm -f "${tmp}"
 }
 
+flush_spool
+if [ -z "$(printf '%s' "${BODY}" | tr -d '[:space:]')" ]; then
+    exit 0
+fi
 send_email
 send_discord
