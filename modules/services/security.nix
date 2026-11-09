@@ -147,6 +147,8 @@ in
   # The sandboxed crowdsec user can't reload via polkit (Access denied, exit 4); "+" runs it as root.
   systemd.services.crowdsec-update-hub.serviceConfig.ExecStartPost =
     lib.mkForce "+${pkgs.systemd}/bin/systemctl reload crowdsec.service";
+  # nixpkgs blanks upstream's ExecReload (it uses /bin/kill), which makes that reload exit 3.
+  systemd.services.crowdsec.serviceConfig.ExecReload = lib.mkForce [ " " "${pkgs.coreutils}/bin/kill -HUP $MAINPID" ];
   # Upstream only Requires= it, so the bouncer races the API key into existence.
   systemd.services.crowdsec-firewall-bouncer.after = [ "crowdsec-firewall-bouncer-register.service" ];
 }
