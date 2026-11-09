@@ -144,6 +144,9 @@ in
   # With DynamicUser its StateDirectory=crowdsec moves /var/lib/crowdsec into
   # /var/lib/private, where crowdsec.service (no StateDirectory) can't reach it.
   systemd.services.crowdsec-firewall-bouncer-register.serviceConfig.DynamicUser = lib.mkForce false;
+  # The sandboxed crowdsec user can't reload via polkit (Access denied, exit 4); "+" runs it as root.
+  systemd.services.crowdsec-update-hub.serviceConfig.ExecStartPost =
+    lib.mkForce "+${pkgs.systemd}/bin/systemctl reload crowdsec.service";
   # Upstream only Requires= it, so the bouncer races the API key into existence.
   systemd.services.crowdsec-firewall-bouncer.after = [ "crowdsec-firewall-bouncer-register.service" ];
 }
