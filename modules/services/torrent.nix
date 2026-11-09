@@ -69,7 +69,8 @@
       throttle.max_peers.normal.set = 40
       throttle.min_peers.seed.set = 5
       throttle.max_peers.seed.set = 20
-      network.max_open_sockets.set = 512  # rtorrent 0.16 minimum
+      # 512 is the minimum rtorrent 0.16 accepts.
+      network.max_open_sockets.set = 512
 
       # Throttle settings
       throttle.global_down.max_rate.set_kb = 0
