@@ -11,6 +11,21 @@
   networking.firewall.allowedTCPPorts = [ 50000 ];
   networking.firewall.allowedUDPPorts = [ 50000 ];
 
+  # Backstop for the peer caps below: the ISP's anti-DDoS blocks us on SYN floods.
+  networking.firewall.extraCommands = ''
+    ip46tables -D OUTPUT -j torrents-syn 2>/dev/null || true
+    ip46tables -F torrents-syn 2>/dev/null || ip46tables -N torrents-syn
+    ip46tables -A torrents-syn -o lo -j RETURN
+    ip46tables -A torrents-syn -m owner ! --uid-owner torrents -j RETURN
+    ip46tables -A torrents-syn -p tcp --syn -m conntrack --ctstate NEW \
+      -m limit --limit 20/s --limit-burst 40 -j RETURN
+    ip46tables -A torrents-syn -p tcp --syn -m conntrack --ctstate NEW -j DROP
+    ip46tables -A OUTPUT -j torrents-syn
+  '';
+  networking.firewall.extraStopCommands = ''
+    ip46tables -D OUTPUT -j torrents-syn 2>/dev/null || true
+  '';
+
   # ============================================================
   # rtorrent - BitTorrent client
   # ============================================================
@@ -48,6 +63,13 @@
       dht.mode.set = auto
       protocol.pex.set = yes
       trackers.use_udp.set = yes
+
+      # The ISP's anti-DDoS blocked us for too many concurrent connection attempts.
+      throttle.min_peers.normal.set = 10
+      throttle.max_peers.normal.set = 40
+      throttle.min_peers.seed.set = 5
+      throttle.max_peers.seed.set = 20
+      network.max_open_sockets.set = 512  # rtorrent 0.16 minimum
 
       # Throttle settings
       throttle.global_down.max_rate.set_kb = 0
