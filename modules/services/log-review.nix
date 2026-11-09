@@ -30,7 +30,7 @@ in
 
   systemd.services.log-review = {
     description = "Daily templated log digest (journal, nginx, DNS)";
-    path = [ pkgs.systemd pkgs.getent pkgs.gawk config.networking.firewall.package ];
+    path = [ pkgs.systemd pkgs.getent pkgs.gawk pkgs.iproute2 config.networking.firewall.package ];
     serviceConfig = {
       Type = "oneshot";
       User = "root";

@@ -39,6 +39,7 @@ NOISE_RE = re.compile(
 )
 COUNTER_RE = re.compile(r"^\s*\d+\s+(\d+)\s.*/\* (in|out) (\S+) \*/", re.M)
 SINCE_RE = re.compile(r"/\* since (\d+) \*/")
+DROP_RE = re.compile(r"^\s*(\d+)\s+\d+\s+DROP\s", re.M)
 MASKS = [
     # Song titles, URIs etc. would otherwise make every line its own "new" pattern.
     (r'"[^"]*"', "STR"),
@@ -251,6 +252,29 @@ def render_traffic(listings, now):
     return "\n".join(["## Traffic", note, "| user | in MB | out MB |", "|---|---|---|", *rows])
 
 
+def syn_listings():
+    return [subprocess.run([tool, "-L", "torrents-syn", "-vxn"], capture_output=True, text=True).stdout
+            for tool in ("iptables", "ip6tables")]
+
+
+def syn_sent_count():
+    return len(subprocess.run(["ss", "-Htn", "state", "syn-sent"], capture_output=True, text=True).stdout.splitlines())
+
+
+def render_fanout(listings, syn_sent, prev):
+    """Return the section and the cumulative torrents-syn DROP count (None without the chain)."""
+    found = [int(n) for text in listings for n in DROP_RE.findall(text)]
+    head = ["## Outbound fan-out", f"Sockets in SYN-SENT at digest time: {syn_sent}"]
+    if not found:
+        return "\n".join([*head, "torrents-syn DROPs: no chain"]), None
+    drops = sum(found)
+    if prev is None:
+        return "\n".join([*head, f"torrents-syn DROPs: {drops} cumulative (no previous digest)"]), drops
+    # A firewall reload zeroes the counter.
+    delta = drops - prev if drops >= prev else drops
+    return "\n".join([*head, f"torrents-syn DROPs since the previous digest: {delta}"]), drops
+
+
 def nginx_entries(day, log_dir):
     stamp = day.strftime("%d/%b/%Y")
     for name in ("access.log.1", "access.log"):
@@ -324,6 +348,11 @@ def main():
     state = args.out / "state"
     state.mkdir(parents=True, exist_ok=True)
     traffic = render_traffic(counter_listings(args.zero_counters), time.time())
+    drops_file = state / "torrents-syn-drops"
+    prev = int(drops_file.read_text()) if drops_file.exists() else None
+    fanout, drops = render_fanout(syn_listings(), syn_sent_count(), prev)
+    if drops is not None:
+        drops_file.write_text(str(drops))
     siphon = Siphon()
     journal = mine_all(triage(journal_entries(args.date), siphon), state / "journal.bin")
     # New name since status moved into the key: every old template would re-flag as new.
@@ -331,6 +360,7 @@ def main():
 
     body = "\n\n".join([
         traffic,
+        fanout,
         render_logins(siphon.logins, args.wan_ip),
         render_failed(siphon.failed),
         render_noise(siphon.noise),

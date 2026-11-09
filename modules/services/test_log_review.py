@@ -4,7 +4,7 @@ from collections import Counter
 
 from log_review import (
     Patterns, Siphon, client_bucket, fence, new_miner, parse_dns, parse_nginx,
-    render_logins, render_nginx, render_traffic, triage,
+    render_fanout, render_logins, render_nginx, render_traffic, triage,
 )
 
 WAN = "194.181.243.144"
@@ -197,3 +197,26 @@ def test_render_traffic_sums_tables(now, note):
 
 def test_render_traffic_without_counters():
     assert render_traffic(["", ""], 0) == "## Traffic\nno accounting counters (acct-in/acct-out chains missing?)"
+
+
+SYN_V4 = """Chain torrents-syn (1 references)
+    pkts      bytes target     prot opt in     out     source               destination
+    3243   570079 RETURN     all  --  *      lo      0.0.0.0/0            0.0.0.0/0
+    3504   210240 RETURN     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp flags:0x17/0x02 ctstate NEW limit: avg 20/sec burst 40
+     900    54000 DROP       tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp flags:0x17/0x02 ctstate NEW
+"""
+SYN_V6 = SYN_V4.replace("     900    54000 DROP", "     100     6000 DROP")
+
+
+@pytest.mark.parametrize(
+    "listings, prev, line, drops",
+    [
+        ([SYN_V4, SYN_V6], None, "torrents-syn DROPs: 1000 cumulative (no previous digest)", 1000),
+        ([SYN_V4, SYN_V6], 400, "torrents-syn DROPs since the previous digest: 600", 1000),
+        ([SYN_V4, SYN_V6], 5000, "torrents-syn DROPs since the previous digest: 1000", 1000),
+        (["", ""], 400, "torrents-syn DROPs: no chain", None),
+    ],
+)
+def test_render_fanout(listings, prev, line, drops):
+    assert render_fanout(listings, 42, prev) == (
+        "\n".join(["## Outbound fan-out", "Sockets in SYN-SENT at digest time: 42", line]), drops)
