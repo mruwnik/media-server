@@ -40,7 +40,9 @@ in
     ip46tables -A out-watch -o lo -j RETURN
     ip46tables -A out-watch -m owner --uid-owner torrents -m conntrack --ctstate NEW -j out-torrents
     ${lib.concatMapStrings (u: ''
-      ip46tables -A out-watch -m owner --uid-owner ${u} -m conntrack --ctstate NEW \
+      ip46tables -A out-watch -m owner --uid-owner ${u} -p tcp --syn -m conntrack --ctstate NEW \
+        -m limit --limit 6/min --limit-burst 20 -j LOG --log-prefix "out-watch ${u}: "
+      ip46tables -A out-watch -m owner --uid-owner ${u} ! -p tcp -m conntrack --ctstate NEW \
         -m limit --limit 6/min --limit-burst 20 -j LOG --log-prefix "out-watch ${u}: "
     '') watchedUsers}
     ip46tables -A OUTPUT -j out-watch

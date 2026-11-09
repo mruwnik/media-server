@@ -29,7 +29,7 @@ in
   #   disk_threshold: 90        # (host.sh)      Alert when disk > 90% full
   #   temp_threshold: 73        # (resources.sh) Alert when CPU > 72°C
   #   memory_threshold: 90      # (resources.sh) Alert when RAM > 90% used
-  #   syn_sent_threshold: 100   # (resources.sh) Alert when > 100 sockets in SYN-SENT
+  #   syn_sent_threshold: 600   # (resources.sh) Alert when > 600 sockets in SYN-SENT
   #   proc_sockets_threshold: 500 # (resources.sh) Alert when one process holds > 500 sockets
   #   conntrack_threshold: 50   # (resources.sh) Alert when conntrack table > 50% full
   #
