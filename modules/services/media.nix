@@ -36,6 +36,8 @@ in
   systemd.services.calibre-web = {
     unitConfig.RequiresMountsFor = bookLibrary;
     serviceConfig = {
+      # ExecStartPre overruns the 90s default when a switch loads the Pi.
+      TimeoutStartSec = "5min";
       CapabilityBoundingSet = "";
       LockPersonality = true;
       NoNewPrivileges = true;
