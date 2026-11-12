@@ -21,18 +21,15 @@
       calibre-web = prev.calibre-web.overrideAttrs (old: {
         pythonRelaxDeps = (old.pythonRelaxDeps or []) ++ [ "requests" ];
       });
-      # Pi 4 is too slow for upstream gjs's 30s per-test timeout
-      # (CommandLine, Internal API tests). Skip check phase and tell
-      # meson not to require GTK at configure time (which is only there
-      # for the now-skipped tests).
-      gjs = prev.gjs.overrideAttrs (old: {
-        doCheck = false;
-        mesonFlags = (old.mesonFlags or []) ++ [ "-Dskip_gtk_tests=true" ];
-      });
+      # Password lives in /etc/msmtprc; dropping keyring keeps libsecret/gjs (compiled on every bump) off the Pi.
+      msmtp = prev.msmtp.override { withKeyring = false; };
     })
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  # A cache miss that compiles in parallel exhausts 4GB RAM and hangs the Pi.
+  nix.settings.max-jobs = 1;
+  nix.settings.cores = 2;
 
   time.timeZone = "Europe/Warsaw";
 
