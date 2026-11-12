@@ -18,7 +18,9 @@ in
         MSMTP_USER=$(${pkgs.yq}/bin/yq -r '.msmtp_user' "$SECRETS")
         MSMTP_PASS=$(${pkgs.yq}/bin/yq -r '.msmtp_password' "$SECRETS")
 
-        cat > /etc/msmtprc << EOF
+        # Holds the SMTP password; root-only because every sender (health-check,
+        # log-review-llm, nixos-update-check) runs as root.
+        (umask 077; rm -f /etc/msmtprc.tmp; cat > /etc/msmtprc.tmp) << EOF
 defaults
 auth           on
 tls            on
@@ -34,7 +36,7 @@ from           $MSMTP_USER
 password       $MSMTP_PASS
 EOF
 
-        chmod 644 /etc/msmtprc
+        mv /etc/msmtprc.tmp /etc/msmtprc
         echo "msmtp configured for $MSMTP_USER"
       else
         echo "Warning: $SECRETS not found, msmtp not configured"
