@@ -64,6 +64,14 @@
       protocol.pex.set = yes
       trackers.use_udp.set = yes
 
+      # PEX/tracker peers announce their own LAN addresses, which collide with ours
+      # and trip the out-torrents firewall alert. Covers peer TCP only, not DHT.
+      ipv4_filter.add_address = 10.0.0.0/8, unwanted
+      ipv4_filter.add_address = 172.16.0.0/12, unwanted
+      ipv4_filter.add_address = 192.168.0.0/16, unwanted
+      ipv4_filter.add_address = 127.0.0.0/8, unwanted
+      ipv4_filter.add_address = 169.254.0.0/16, unwanted
+
       # The ISP's anti-DDoS blocked us for too many concurrent connection attempts.
       throttle.min_peers.normal.set = 10
       throttle.max_peers.normal.set = 40
