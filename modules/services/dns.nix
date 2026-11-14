@@ -96,4 +96,8 @@
       };
     };
   };
+
+  # Lists download once at startup then only every refreshPeriod; starting
+  # before the DHCP route meant a day of no ad-blocking after every reboot.
+  systemd.services.blocky.after = [ "network-online.target" ];
 }
