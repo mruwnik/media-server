@@ -29,8 +29,9 @@ fi
 # Execs by services that never exec (audit key svc-exec), minus rtorrent's
 # start-up shell calls and the lock check forked by its ExecStartPre (its other
 # helpers are coreutils, excluded in the rule), and radicale's start-up log line
-# (platform.platform() runs `uname -p`), and the preStart scripts of mpd and
-# nginx, whose parent is the unit script's shell rather than systemd.
+# (platform.platform() runs `uname -p`), the preStart scripts of mpd and
+# nginx, whose parent is the unit script's shell rather than systemd, and
+# logrotate's weekly gzip of nginx logs (nixpkgs gzip is a bash wrapper).
 if ! auditctl -s >/dev/null 2>&1; then
     skip "service execs" "auditctl needs root"
 else
@@ -41,7 +42,7 @@ else
                match($0, / uid=[^ ]+/) { u = substr($0, RSTART + 5, RLENGTH - 5) }
                match($0, /argc=[0-9]+ [^\n]*/) { print u ": " substr($0, RSTART, RLENGTH) }' \
         | sed -E 's/argc=[0-9]+ a0=//; s/ a[0-9]+=/ /g' \
-        | grep -vE '^torrents: (sh -c "?(mkdir -p |echo >)/media/data/Unsorted/|/nix/store/[^ ]*-procps-[^ /]*/bin/pidof rtorrent ?$)|^radicale: uname -p ?$|^mpd: install -m 600 /nix/store/[^ ]*-mpd\.conf /run/mpd/mpd\.conf ?$|^nginx: /nix/store/[^ ]*-nginx-[^ /]*/bin/nginx -c /nix/store/[^ ]*-nginx\.conf -t ?$' \
+        | grep -vE '^torrents: (sh -c "?(mkdir -p |echo >)/media/data/Unsorted/|/nix/store/[^ ]*-procps-[^ /]*/bin/pidof rtorrent ?$)|^radicale: uname -p ?$|^mpd: install -m 600 /nix/store/[^ ]*-mpd\.conf /run/mpd/mpd\.conf ?$|^nginx: /nix/store/[^ ]*-nginx-[^ /]*/bin/nginx -c /nix/store/[^ ]*-nginx\.conf -t ?$|^nginx: (/nix/store/[^ ]*-bash-[^ /]*/bin/bash -e )?/nix/store/[^ ]*-gzip-[^ /]*/bin/gzip ?$' \
         | cut -c1-100 | top5)
     if [ -z "$execs" ]; then pass "no execs by rtorrent/nginx/mpd/radicale"
     else fail "service executed a program" "$execs"; fi
