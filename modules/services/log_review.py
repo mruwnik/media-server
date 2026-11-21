@@ -184,6 +184,9 @@ def journal_entries(day):
         msg = e.get("MESSAGE")
         if not isinstance(msg, str):
             continue
+        # The LLM reviewer reading its own FAIL lines carries them forward forever.
+        if e.get("_SYSTEMD_UNIT") == "log-review-llm.service":
+            continue
         ts = dt.datetime.fromtimestamp(int(e["__REALTIME_TIMESTAMP"]) / 1e6).strftime("%H:%M:%S")
         yield ts, f"{e.get('SYSLOG_IDENTIFIER') or e.get('_SYSTEMD_UNIT') or '?'}: {msg}"
 
