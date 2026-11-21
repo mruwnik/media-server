@@ -41,7 +41,6 @@
   # Move /nix to the 4.5TB data partition — the 30GB root partition is too
   # small for nix store growth during updates. The data partition must mount
   # in the initrd (neededForBoot) so /nix is available before stage 2 init.
-  # base.nix keeps /media/data as nofail so SD-only recovery boots still work.
   fileSystems."/media/data".neededForBoot = true;
   fileSystems."/nix" = {
     device = "/media/data/nix";

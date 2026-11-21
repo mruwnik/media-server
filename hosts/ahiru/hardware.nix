@@ -37,11 +37,12 @@
   };
 
   # Existing data partition - DO NOT FORMAT
-  # nofail so SD-only boot works without the HDD
+  # No nofail/short device-timeout: it holds /nix and is mounted (and fscked)
+  # in stage 1, so stage 2's 10s device wait only produced a spurious
+  # systemd-fsck "dependency failed" every boot.
   fileSystems."/media/data" = {
     device = "/dev/disk/by-uuid/1934daec-232f-41f6-b6b8-107923b3fd1e";
     fsType = "ext4";
-    options = [ "nofail" "x-systemd.device-timeout=10" ];
   };
 
   # No swap on flash storage - use zram instead
