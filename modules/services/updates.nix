@@ -34,6 +34,7 @@ in
 
     path = with pkgs; [
       git
+      openssh
       nix
       coreutils
       gnugrep
@@ -57,7 +58,8 @@ in
       LOG_FILE="/tmp/nixos-rebuild-$$.log"
 
       # Allow root to access user-owned git repo
-      git config --global --add safe.directory "$NIXOS_DIR" 2>/dev/null || true
+      git config --global --get-all safe.directory | grep -qxF "$NIXOS_DIR" \
+        || git config --global --add safe.directory "$NIXOS_DIR"
 
       # Load config
       if [ ! -f "$CONFIG" ]; then
@@ -81,7 +83,7 @@ in
 
       # Fetch latest from remote
       export GIT_SSH_COMMAND="ssh -i /home/${primaryUser}/.ssh/id_ed25519 -o UserKnownHostsFile=/root/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
-      git fetch origin 2>/dev/null || true
+      git fetch origin
 
       # Get current and remote commits
       LOCAL=$(git rev-parse HEAD)
