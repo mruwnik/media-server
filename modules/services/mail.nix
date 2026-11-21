@@ -50,7 +50,7 @@ EOF
   systemd.tmpfiles.rules = [
     "L /usr/sbin/sendmail - - - - ${pkgs.msmtp}/bin/msmtp"
     "L /usr/bin/sendmail - - - - ${pkgs.msmtp}/bin/msmtp"
-    "f /var/log/msmtp.log 0666 root root -"
+    "f /var/log/msmtp.log 0600 root root -"
   ];
 
   # Mail aliases - where to send root/system mail
