@@ -4,6 +4,8 @@
   # Enable audio (3.5mm headphone jack)
   boot.kernelParams = [
     "snd_bcm2835.enable_headphones=1"
+    # Seagate Expansion: its UAS mode rejects SMART (SAT) passthrough.
+    "usb-storage.quirks=0bc2:231a:u"
   ];
 
   # CVE-2026-31431 ("Copy Fail") mitigation: block algif_aead until the
