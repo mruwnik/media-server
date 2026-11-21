@@ -23,6 +23,9 @@
         "https://dns.cloudflare.com/dns-query"
         "https://dns.google/dns-query"
       ];
+      # Both upstreams time out together during short WAN blips (no local
+      # cause); 3 attempts x the 2s default gave up after ~6s.
+      upstreams.timeout = "5s";
 
       # No IPv6 uplink: dialling the DoH servers' v6 addresses fails with
       # "network is unreachable" ~1.6k times a day.
