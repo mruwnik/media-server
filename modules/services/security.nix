@@ -80,6 +80,9 @@ in
   security.audit = {
     enable = true;
     rules = [
+      # systemd loads/unloads cgroup BPF on every unit start: ~25k BPF records
+      # (+ SYSCALL/PROCTITLE each) a day, most of the journal's volume.
+      "-a never,exclude -F msgtype=BPF"
       "-a never,exit -F arch=b64 -S execve,execveat -F ppid=1"
       "-a never,exit -F arch=b64 -S execve -F uid=torrents -F exe=${pkgs.coreutils}/bin/coreutils"
     ] ++ map (u: "-a always,exit -F arch=b64 -S execve,execveat -F success=1 -F uid=${u} -k svc-exec") execWatchedUsers;

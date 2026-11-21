@@ -53,12 +53,12 @@
 
   # Persistent logs on the USB-HDD root so crashes survive a reboot.
   # (Was volatile/tmpfs from the SD-card era; root now lives on a 30GB ext4
-  # partition on the USB disk, where journal writes are cheap. Capped at 500M
-  # so a log storm can't fill /.) Complemented by the per-minute black-box
+  # partition on the USB disk, where journal writes are cheap. Capped at 1G
+  # (~30 days) so a log storm can't fill /.) Complemented by the per-minute black-box
   # recorder in modules/services/monitoring.nix.
   services.journald.extraConfig = ''
     Storage=persistent
-    SystemMaxUse=500M
+    SystemMaxUse=1G
     SystemMaxFileSize=50M
     RuntimeMaxUse=64M
   '';
