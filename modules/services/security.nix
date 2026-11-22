@@ -26,14 +26,18 @@ in
     # exempt via out-watch's lo rule, and the router is resolv.conf's fallback.
     # DHT/PEX peers advertise their own private addresses, so only our LAN and
     # the admin ports are alerted on; other private ranges are rejected quietly.
+    # ipv4_filter keeps peer connections off private ranges, but the DHT ignores
+    # it, so its pings to LAN nodes are expected and rejected quietly too.
     ip46tables -A out-block -m limit --limit 6/min --limit-burst 20 -j LOG --log-prefix "out-block rtorrent: "
     ip46tables -A out-block -j REJECT
     iptables -A out-torrents -d 192.168.0.1 -p udp --dport 53 -j RETURN
     iptables -A out-torrents -d 192.168.0.1 -p tcp --dport 53 -j RETURN
+    iptables -A out-torrents -d 192.168.0.0/16 -p udp --sport ${toString config.services.rtorrent.port} -j REJECT
     iptables -A out-torrents -d 192.168.0.0/24 -j out-block
     ip46tables -A out-torrents -p tcp -m multiport --dports 22,23,25,445,465,587,3389 -j out-block
-    iptables -A out-torrents -d 192.168.0.0/16 -j REJECT
-    iptables -A out-torrents -d 10.0.0.0/8 -j REJECT
+    ${lib.concatMapStrings (net: ''
+      iptables -A out-torrents -d ${net} -j REJECT
+    '') [ "192.168.0.0/16" "10.0.0.0/8" "172.16.0.0/12" "100.64.0.0/10" "169.254.0.0/16" ]}
     ip6tables -A out-torrents -d fc00::/7 -j REJECT
     ip6tables -A out-torrents -d fe80::/10 -j REJECT
 

@@ -21,6 +21,10 @@
       -m limit --limit 20/s --limit-burst 40 -j RETURN
     ip46tables -A torrents-syn -p tcp --syn -m conntrack --ctstate NEW -j DROP
     ip46tables -A OUTPUT -j torrents-syn
+
+    # libtorrent's DHT ignores ipv4_filter and adds LAN hosts that query it
+    # (directly or hairpinned via the router) to its routing table, then pings them.
+    iptables -I nixos-fw -s 192.168.0.0/16 -p udp --dport ${toString config.services.rtorrent.port} -j DROP
   '';
   networking.firewall.extraStopCommands = ''
     ip46tables -D OUTPUT -j torrents-syn 2>/dev/null || true
@@ -65,12 +69,13 @@
       trackers.use_udp.set = yes
 
       # PEX/tracker peers announce their own LAN addresses, which collide with ours
-      # and trip the out-torrents firewall alert. Covers peer TCP only, not DHT.
+      # and trip the out-torrents firewall alert. Covers peers only; DHT ignores it.
       ipv4_filter.add_address = 10.0.0.0/8, unwanted
       ipv4_filter.add_address = 172.16.0.0/12, unwanted
       ipv4_filter.add_address = 192.168.0.0/16, unwanted
       ipv4_filter.add_address = 127.0.0.0/8, unwanted
       ipv4_filter.add_address = 169.254.0.0/16, unwanted
+      ipv4_filter.add_address = 100.64.0.0/10, unwanted
 
       # The ISP's anti-DDoS blocked us for too many concurrent connection attempts.
       throttle.min_peers.normal.set = 10
