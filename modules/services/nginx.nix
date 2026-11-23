@@ -157,7 +157,7 @@ in
           # extensionless files (e.g. /files/Unsorted/SOMEFILE) fell through
           # and were served instead of rejected; anchoring on "ends with / or
           # .ext" closes that gap.
-          if ($uri !~* "(/|\.(mkv|mp4|avi|webm|m4v|ass|srt|ssa|sub|vtt))$") {
+          if ($uri !~* "(/|\.(mkv|mp4|avi|webm|m4v|ogm|vob|ass|srt|ssa|sub|idx|vtt))$") {
             return 403;
           }
         '';
