@@ -6,12 +6,10 @@ let
 in
 {
   # File sharing is LAN-only: the router forwards 445, and remote viewing goes
-  # through media.ahiru.pl/files/. 10.8.0.0/24 is the router's OpenVPN pool
-  # (not masqueraded). nixos-fw is flushed on every reload, so -A can't pile up.
+  # through media.ahiru.pl/files/. nixos-fw is flushed on every reload, so -A
+  # can't pile up.
   networking.firewall.extraCommands = ''
-    for src in 192.168.0.0/24 10.8.0.0/24; do
-      iptables -A nixos-fw -s $src -p tcp -m multiport --dports 139,445 -j nixos-fw-accept
-    done
+    iptables -A nixos-fw -s 192.168.0.0/24 -p tcp -m multiport --dports 139,445 -j nixos-fw-accept
     iptables -A nixos-fw -s 192.168.0.0/24 -p tcp --dport 2049 -j nixos-fw-accept
     iptables -A nixos-fw -s 192.168.0.0/24 -p udp -m multiport --dports 137,138 -j nixos-fw-accept
     ip6tables -A nixos-fw -s fe80::/10 -p tcp -m multiport --dports 139,445 -j nixos-fw-accept
