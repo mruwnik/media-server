@@ -124,6 +124,13 @@ in
   # MPD user needs access to Music directory
   users.users.mpd.extraGroups = [ "audio" ];
 
+  # Boot I/O (load ~12) once pushed startup past the 90s default; a manual restart takes ~4s.
+  systemd.services.mpd.serviceConfig = {
+    TimeoutStartSec = "5min";
+    Restart = "on-failure";
+    RestartSec = "30s";
+  };
+
   # ============================================================
   # myMPD - Modern web UI for MPD
   # ============================================================
