@@ -27,7 +27,7 @@ tests/
     torrent.sh      rtorrent rpc socket
     backups.sh      filen-sync timer armed + last run success + recent
     resources.sh    CPU temp + memory (fail past thresholds) + load (WARN)
-    host.sh         disk usage + under-voltage/throttling
+    host.sh         disk usage + disk SMART vs baseline + under-voltage/throttling
     public.sh       blog/portal/auth-gate via the real domains (DNS+TLS)  [takes -u]
     security.sh     compromise tripwires (outbound from service users, blocked
                     rtorrent destinations, execs by services via auditd)

@@ -15,7 +15,7 @@ let
   # Everything checks/*.sh + notify.sh need. /run/wrappers/bin (added in the
   # scripts) provides setuid sudo for calibre.sh's write-access drop to calibre.
   checkPath = with pkgs; [
-    bash coreutils gawk gnugrep gnused systemd curl
+    bash coreutils gawk gnugrep gnused systemd curl smartmontools
     sqlite iproute2 procps libraspberrypi yq jq msmtp audit
   ] ++ [ config.networking.firewall.package ];
 in
@@ -130,7 +130,7 @@ in
   # vcgencmd comes from libraspberrypi; if that package name differs in the
   # pinned nixpkgs the throttle line is simply skipped (command -v guard).
 
-  environment.systemPackages = [ pkgs.libraspberrypi ];
+  environment.systemPackages = [ pkgs.libraspberrypi pkgs.smartmontools ];
 
   systemd.timers.blackbox-recorder = {
     wantedBy = [ "timers.target" ];

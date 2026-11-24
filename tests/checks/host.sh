@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# host.sh — host-level health: disk space and Pi power/throttling.
+# host.sh — host-level health: disk space, disk SMART and Pi power/throttling.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 . ./lib.sh
@@ -46,6 +46,32 @@ if [ -n "$throttle_raw" ]; then
     fi
 else
     skip "throttling check" "vcgencmd needs the video group or sudo"
+fi
+
+# SMART on the USB HDD holding /, /nix and /media/data. The baseline is the
+# damage already accepted; raising it is a deliberate commit, not Pi state.
+# -n standby: never spin the disk up just to read it.
+smart_dev=/dev/disk/by-id/wwn-0x5000c500d5adbf14
+declare -A smart_baseline=([5]=136 [197]=0 [198]=0)
+declare -A smart_name=([5]=reallocated [197]=pending [198]=offline-uncorrectable)
+smartctl=(smartctl)
+[ "$(id -u)" -eq 0 ] || smartctl=(sudo -n smartctl)
+smart=$("${smartctl[@]}" -d sat -n standby -H -A "$smart_dev" 2>/dev/null)
+if grep -q 'STANDBY' <<<"$smart"; then
+    skip "SMART" "disk in standby"
+elif ! grep -q 'self-assessment' <<<"$smart"; then
+    skip "SMART" "smartctl needs root or sudo"
+else
+    health=$(awk -F': ' '/self-assessment/ {print $2}' <<<"$smart")
+    if [ "$health" = PASSED ]; then pass "SMART health $health"
+    else fail "SMART health ${health:-?}" "$smart_dev"; fi
+    for id in 5 197 198; do
+        raw=$(awk -v id="$id" '$1 == id {print $10}' <<<"$smart")
+        base=${smart_baseline[$id]}
+        if [ -z "$raw" ]; then fail "SMART ${smart_name[$id]} sectors" "attribute $id missing"
+        elif [ "$raw" -le "$base" ]; then pass "SMART ${smart_name[$id]} sectors $raw (baseline $base)"
+        else fail "SMART ${smart_name[$id]} sectors $raw" "above baseline $base in tests/checks/host.sh"; fi
+    done
 fi
 
 finish
