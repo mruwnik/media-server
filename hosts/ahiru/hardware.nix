@@ -74,6 +74,16 @@
     "kernel.hung_task_warnings" = -1;
   };
 
+  # The USB HDD (bridge queue depth 1) is saturated by rtorrent's random seed
+  # reads. With the default nr_requests=2 every extra request blocks in
+  # blk_mq_get_tag, so mq-deadline can't prefer MPD over rtorrent (IO class
+  # idle, torrent.nix); 64 gives it a queue to reorder. APM off stops the
+  # heads parking (Load_Cycle_Count is past its rated life). Re-run on every
+  # add so a USB re-enumeration doesn't revert to the drive's APM 128.
+  services.udev.extraRules = ''
+    ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_WWN}=="0x5000c500d5adbf14", ATTR{queue/nr_requests}="64", RUN+="${pkgs.smartmontools}/bin/smartctl -d sat -s apm,off $devnode"
+  '';
+
   # Use tmpfs for /tmp
   boot.tmp.useTmpfs = true;
 }

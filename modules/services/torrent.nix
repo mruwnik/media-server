@@ -114,6 +114,9 @@
     ReadWritePaths = [ "/media/data/Unsorted" ];
     ProtectHome = true;
     MemoryDenyWriteExecute = true;
+
+    # Seeding saturates the HDD; let MPD's reads go first (see hardware.nix).
+    IOSchedulingClass = "idle";
   };
 
   # Create hidden directories and remove non-hidden ones the NixOS module creates
