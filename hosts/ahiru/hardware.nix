@@ -4,7 +4,8 @@
   # Enable audio (3.5mm headphone jack)
   boot.kernelParams = [
     "snd_bcm2835.enable_headphones=1"
-    # Seagate Expansion: its UAS mode rejects SMART (SAT) passthrough.
+    # Seagate Expansion (old disk, attached until unplugged): its UAS mode
+    # rejects SMART (SAT) passthrough.
     "usb-storage.quirks=0bc2:231a:u"
   ];
 
@@ -17,10 +18,11 @@
     install algif_aead /bin/false
   '';
 
-  # Root filesystem on USB HDD (sda1) - 30GB partition
+  # Root on the WD USB HDD, p1. By UUID, not label: the old Seagate still
+  # carries NIXOS_ROOT while it's attached.
   # mkForce required to override the sd-image defaults (ahiru-base image)
   fileSystems."/" = {
-    device = lib.mkForce "/dev/disk/by-label/NIXOS_ROOT";
+    device = lib.mkForce "/dev/disk/by-uuid/e3d69c01-2dbf-4a80-916c-053884b8fead";
     fsType = lib.mkForce "ext4";
   };
 
@@ -38,12 +40,12 @@
     fsType = "vfat";
   };
 
-  # Existing data partition - DO NOT FORMAT
+  # Data partition (WD p2) - DO NOT FORMAT
   # No nofail/short device-timeout: it holds /nix and is mounted (and fscked)
   # in stage 1, so stage 2's 10s device wait only produced a spurious
   # systemd-fsck "dependency failed" every boot.
   fileSystems."/media/data" = {
-    device = "/dev/disk/by-uuid/1934daec-232f-41f6-b6b8-107923b3fd1e";
+    device = "/dev/disk/by-uuid/bbc725b0-4d8f-4654-8d44-3feb0c1cd749";
     fsType = "ext4";
   };
 
@@ -54,7 +56,7 @@
   };
 
   # Persistent logs on the USB-HDD root so crashes survive a reboot.
-  # (Was volatile/tmpfs from the SD-card era; root now lives on a 30GB ext4
+  # (Was volatile/tmpfs from the SD-card era; root now lives on an ext4
   # partition on the USB disk, where journal writes are cheap. Capped at 1G
   # (~30 days) so a log storm can't fill /.) Complemented by the per-minute black-box
   # recorder in modules/services/monitoring.nix.
@@ -78,10 +80,10 @@
   # reads. With the default nr_requests=2 every extra request blocks in
   # blk_mq_get_tag, so mq-deadline can't prefer MPD over rtorrent (IO class
   # idle, torrent.nix); 64 gives it a queue to reorder. APM off stops the
-  # heads parking (Load_Cycle_Count is past its rated life). Re-run on every
-  # add so a USB re-enumeration doesn't revert to the drive's APM 128.
+  # heads parking and unparking (audible clicks) on every seed read. Re-run on
+  # every add so a USB re-enumeration doesn't revert the drive's APM.
   services.udev.extraRules = ''
-    ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_WWN}=="0x5000c500d5adbf14", ATTR{queue/nr_requests}="64", RUN+="${pkgs.smartmontools}/bin/smartctl -d sat -s apm,off $devnode"
+    ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_WWN}=="0x50014ee2172bd115", ATTR{queue/nr_requests}="64", RUN+="${pkgs.smartmontools}/bin/smartctl -d sat -s apm,off $devnode"
   '';
 
   # Use tmpfs for /tmp

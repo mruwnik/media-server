@@ -78,7 +78,7 @@ ssh dan@ahiru.pl "cd ~/nixos && sudo nixos-rebuild switch --flake .#ahiru"
 
 ## Initial Setup
 
-The Pi boots from SD card (`/boot/firmware`) but runs root from HDD (`/dev/sda1`).
+The Pi boots from SD card (`/boot/firmware`) but runs root from the USB HDD (by UUID, see `hosts/ahiru/hardware.nix`).
 
 ### 1. Build base SD image
 
@@ -95,30 +95,14 @@ zstd -d result/sd-image/*.img.zst -o nixos.img
 sudo dd if=nixos.img of=/dev/sdX bs=4M status=progress
 ```
 
-### 3. Prepare HDD
+### 3. Move root to the HDD
 
-Ensure HDD is connected with partition layout:
+Partition the HDD (p1 ext4 root, p2 ext4 data), put their UUIDs in
+`hosts/ahiru/hardware.nix`, copy the running root onto p1 with
+`rsync -aHAXSx --numeric-ids`, then build and boot the generation
+(the initrd carries the root UUID; the cmdline has no `root=`).
 
-- `sda1` (30GB) - will be formatted as NIXOS_ROOT
-- `sda2` (rest) - data partition (untouched)
-
-### 4. Boot and migrate to HDD
-
-Boot the Pi and SSH in:
-
-```bash
-ssh dan@<pi-ip>
-```
-
-Manually trigger the HDD migration:
-
-```bash
-sudo systemctl start hdd-install
-```
-
-This will format `sda1`, copy the system, and reboot into HDD root.
-
-### 5. Add SSH key to GitHub
+### 4. Add SSH key to GitHub
 
 After reboot, the system generates an SSH key and displays it:
 
@@ -135,7 +119,7 @@ Add this key at: https://github.com/settings/ssh/new
 
 If you miss it, view with: `cat ~/.ssh/id_ed25519.pub`
 
-### 6. Clone and rebuild
+### 5. Clone and rebuild
 
 ```bash
 git clone git@github.com:mruwnik/media-server.git ~/nixos

@@ -7,7 +7,6 @@
     ./hardware.nix
     ../../modules/common/networking.nix
     ../../modules/common/users.nix
-    ../../modules/common/first-boot-install.nix
   ];
 
   networking.hostName = "ahiru";

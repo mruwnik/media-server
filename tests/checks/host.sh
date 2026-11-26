@@ -51,8 +51,8 @@ fi
 # SMART on the USB HDD holding /, /nix and /media/data. The baseline is the
 # damage already accepted; raising it is a deliberate commit, not Pi state.
 # -n standby: never spin the disk up just to read it.
-smart_dev=/dev/disk/by-id/wwn-0x5000c500d5adbf14
-declare -A smart_baseline=([5]=144 [197]=0 [198]=0)
+smart_dev=/dev/disk/by-id/wwn-0x50014ee2172bd115
+declare -A smart_baseline=([5]=0 [197]=0 [198]=0)
 declare -A smart_name=([5]=reallocated [197]=pending [198]=offline-uncorrectable)
 smartctl=(smartctl)
 [ "$(id -u)" -eq 0 ] || smartctl=(sudo -n smartctl)
