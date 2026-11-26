@@ -27,7 +27,7 @@ in
   # tests/notify.sh. Configure in /etc/monitoring-config:
   #   notify_email: "your@email.com"
   #   disk_threshold: 90        # (host.sh)      Alert when disk > 90% full
-  #   temp_threshold: 73        # (resources.sh) Alert when CPU > 72°C
+  #   temp_threshold: 75        # (resources.sh) Alert when CPU > 74°C
   #   memory_threshold: 90      # (resources.sh) Alert when RAM > 90% used
   #   syn_sent_threshold: 600   # (resources.sh) Alert when > 600 sockets in SYN-SENT
   #   proc_sockets_threshold: 500 # (resources.sh) Alert when one process holds > 500 sockets

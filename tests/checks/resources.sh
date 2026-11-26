@@ -19,7 +19,7 @@ cfg() {
     fi
     printf '%s' "${val:-$def}"
 }
-TEMP_THRESHOLD="${TEMP_THRESHOLD:-$(cfg temp_threshold 73)}"
+TEMP_THRESHOLD="${TEMP_THRESHOLD:-$(cfg temp_threshold 75)}"
 MEMORY_THRESHOLD="${MEMORY_THRESHOLD:-$(cfg memory_threshold 90)}"
 SYN_SENT_THRESHOLD="${SYN_SENT_THRESHOLD:-$(cfg syn_sent_threshold 600)}"
 PROC_SOCKETS_THRESHOLD="${PROC_SOCKETS_THRESHOLD:-$(cfg proc_sockets_threshold 500)}"
