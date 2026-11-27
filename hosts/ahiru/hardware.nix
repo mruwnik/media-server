@@ -82,8 +82,10 @@
   # idle, torrent.nix); 64 gives it a queue to reorder. APM off stops the
   # heads parking and unparking (audible clicks) on every seed read. Re-run on
   # every add so a USB re-enumeration doesn't revert the drive's APM.
+  # read_ahead_kb 64 (default 512): seed peers ask for scattered 16K blocks,
+  # and 512K readahead around each made the disk read ~4x what was uploaded.
   services.udev.extraRules = ''
-    ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_WWN}=="0x50014ee2172bd115", ATTR{queue/nr_requests}="64", RUN+="${pkgs.smartmontools}/bin/smartctl -d sat -s apm,off $devnode"
+    ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_WWN}=="0x50014ee2172bd115", ATTR{queue/nr_requests}="64", ATTR{queue/read_ahead_kb}="64", RUN+="${pkgs.smartmontools}/bin/smartctl -d sat -s apm,off $devnode"
   '';
 
   # Use tmpfs for /tmp

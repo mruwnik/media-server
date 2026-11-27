@@ -87,7 +87,7 @@
 
       # Throttle settings
       throttle.global_down.max_rate.set_kb = 0
-      throttle.global_up.max_rate.set_kb = 5200
+      throttle.global_up.max_rate.set_kb = 2048
 
       # Move completed downloads to category folder based on custom1 label
       method.insert = d.get_finished_dir, simple, "cat=/media/data/Unsorted/,$d.custom1="
